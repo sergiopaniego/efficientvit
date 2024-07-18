@@ -12,7 +12,7 @@ __all__ = ["LayerNorm2d", "build_norm", "reset_bn", "set_norm_eps"]
 
 
 class LayerNorm2d(nn.LayerNorm):
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x):
         out = x - torch.mean(x, dim=1, keepdim=True)
         out = out / torch.sqrt(torch.square(out).mean(dim=1, keepdim=True) + self.eps)
         if self.elementwise_affine:
@@ -21,14 +21,14 @@ class LayerNorm2d(nn.LayerNorm):
 
 
 # register normalization function here
-REGISTERED_NORM_DICT: dict[str, type] = {
+REGISTERED_NORM_DICT = {
     "bn2d": nn.BatchNorm2d,
     "ln": nn.LayerNorm,
     "ln2d": LayerNorm2d,
 }
 
 
-def build_norm(name="bn2d", num_features=None, **kwargs) -> nn.Module or None:
+def build_norm(name="bn2d", num_features=None, **kwargs):
     if name in ["ln", "ln2d"]:
         kwargs["normalized_shape"] = num_features
     else:
@@ -130,7 +130,7 @@ def reset_bn(
             m.running_var.data[:feature_dim].copy_(bn_var[name].avg)
 
 
-def set_norm_eps(model: nn.Module, eps: float or None = None) -> None:
+def set_norm_eps(model: nn.Module, eps= None):
     for m in model.modules():
         if isinstance(m, (nn.GroupNorm, nn.LayerNorm, _BatchNorm)):
             if eps is not None:

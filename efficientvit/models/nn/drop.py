@@ -13,7 +13,7 @@ from efficientvit.models.utils import build_kwargs_from_config
 __all__ = ["apply_drop_func"]
 
 
-def apply_drop_func(network: nn.Module, drop_config: dict[str, any] or None) -> None:
+def apply_drop_func(network: nn.Module, drop_config):
     if drop_config is None:
         return
 

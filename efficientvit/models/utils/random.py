@@ -28,7 +28,7 @@ def torch_random(generator: torch.Generator or None = None) -> float:
     return float(torch.rand(1, generator=generator))
 
 
-def torch_shuffle(src_list: list[any], generator: torch.Generator or None = None) -> list[any]:
+def torch_shuffle(src_list, generator):
     rand_indexes = torch.randperm(len(src_list), generator=generator).tolist()
     return [src_list[i] for i in rand_indexes]
 
@@ -40,11 +40,11 @@ def torch_uniform(low: float, high: float, generator: torch.Generator or None = 
 
 
 def torch_random_choices(
-    src_list: list[any],
-    generator: torch.Generator or None = None,
+    src_list,
+    generator,
     k=1,
-    weight_list: list[float] or None = None,
-) -> any or list:
+    weight_list= None,
+):
     if weight_list is None:
         rand_idx = torch.randint(low=0, high=len(src_list), generator=generator, size=(k,))
         out_list = [src_list[i] for i in rand_idx]

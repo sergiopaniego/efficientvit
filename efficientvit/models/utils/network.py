@@ -34,11 +34,13 @@ def get_same_padding(kernel_size: int or tuple[int, ...]) -> int or tuple[int, .
         assert kernel_size % 2 > 0, "kernel size should be odd number"
         return kernel_size // 2
 
-
+from typing import List, Optional, Dict, Any, Callable
+    
 def resize(
     x: torch.Tensor,
     size: any or None = None,
-    scale_factor: list[float] or None = None,
+    scale_factor: Optional[List[float]] = None,
+    #scale_factor: list[float] or None = None,
     mode: str = "bicubic",
     align_corners: bool or None = False,
 ) -> torch.Tensor:
@@ -56,7 +58,7 @@ def resize(
         raise NotImplementedError(f"resize(mode={mode}) not implemented.")
 
 
-def build_kwargs_from_config(config: dict, target_func: callable) -> dict[str, any]:
+def build_kwargs_from_config(config: dict, target_func: Callable) -> Dict[str, Any]:
     valid_keys = list(signature(target_func).parameters)
     kwargs = {}
     for key in config:
@@ -65,7 +67,7 @@ def build_kwargs_from_config(config: dict, target_func: callable) -> dict[str, a
     return kwargs
 
 
-def load_state_dict_from_file(file: str, only_state_dict=True) -> dict[str, torch.Tensor]:
+def load_state_dict_from_file(file: str, only_state_dict=True) -> Dict[str, torch.Tensor]:
     file = os.path.realpath(os.path.expanduser(file))
     checkpoint = torch.load(file, map_location="cpu")
     if only_state_dict and "state_dict" in checkpoint:

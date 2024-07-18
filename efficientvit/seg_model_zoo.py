@@ -17,7 +17,7 @@ from efficientvit.models.utils import load_state_dict_from_file
 __all__ = ["create_seg_model"]
 
 
-REGISTERED_SEG_MODEL: dict[str, dict[str, str]] = {
+REGISTERED_SEG_MODEL = {
     "cityscapes": {
         "b0": "assets/checkpoints/seg/cityscapes/b0.pt",
         "b1": "assets/checkpoints/seg/cityscapes/b1.pt",
@@ -39,7 +39,7 @@ REGISTERED_SEG_MODEL: dict[str, dict[str, str]] = {
 
 
 def create_seg_model(
-    name: str, dataset: str, pretrained=True, weight_url: str or None = None, **kwargs
+    name: str, dataset: str, pretrained=True, weight_url= None, **kwargs
 ) -> EfficientViTSeg:
     model_dict = {
         "b0": efficientvit_seg_b0,
@@ -57,7 +57,6 @@ def create_seg_model(
     else:
         model = model_dict[model_id](dataset=dataset, **kwargs)
 
-    if model_id in ["l1", "l2"]:
         set_norm_eps(model, 1e-7)
 
     if pretrained:
