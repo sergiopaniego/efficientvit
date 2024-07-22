@@ -164,6 +164,10 @@ def loss_masks(src_masks, target_masks, num_masks, oversample_ratio=3.0, mode="m
     targets dicts must contain the key "masks" containing a tensor of dim [nb_target_boxes, h, w]
     """
 
+    # Verificar las dimensiones iniciales
+    print(f'src_masks shape: {src_masks.shape}')
+    print(f'target_masks shape: {target_masks.shape}')
+
     with torch.no_grad():
         # sample point_coords
         point_coords = get_uncertain_point_coords_with_randomness(
@@ -186,8 +190,20 @@ def loss_masks(src_masks, target_masks, num_masks, oversample_ratio=3.0, mode="m
         align_corners=False,
     ).squeeze(1)
 
+    print('----point_logits----')
+    print('src_masks', src_masks.shape)
+    print(point_logits.shape)
+    print('---point labels----')
+    print('point_labels', point_labels.shape)
+
+    # Ensure the dimensions match
+    if point_labels.dim() == 3 and point_logits.dim() == 2:
+        point_labels = point_labels.view_as(point_logits)
+    
+    print('---reshaped point_labels----')
+    print(point_labels.shape)
+
     loss_mask = sigmoid_ce_loss_jit(point_logits, point_labels, num_masks, mode)
-    loss_dice = dice_loss_jit(point_logits, point_labels, num_masks, mode)
 
     del src_masks
     del target_masks

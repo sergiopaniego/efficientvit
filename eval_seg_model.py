@@ -37,6 +37,9 @@ class Resize(object):
         image, target = feed_dict["data"], feed_dict["label"]
         height, width = self.crop_size
 
+        print(image.shape)
+        
+
         h, w, _ = image.shape
         if width != w or height != h:
             image = cv2.resize(
@@ -200,6 +203,8 @@ class CityscapesDataset(Dataset):
                 mask_path = image_path.replace("/leftImg8bit/", "/gtFine/").replace(
                     "_leftImg8bit.", "_gtFine_labelIds."
                 )
+                #print('image_path',image_path)
+                #print('mask_path', mask_path)
                 if not mask_path.endswith(".png"):
                     mask_path = ".".join([*mask_path.split(".")[:-1], "png"])
                 samples.append((image_path, mask_path))
@@ -220,7 +225,7 @@ class CityscapesDataset(Dataset):
         image_path, mask_path = self.samples[index]
         image = np.array(Image.open(image_path).convert("RGB"))
         mask = np.array(Image.open(mask_path))
-        mask = self.label_map[mask]
+        #mask = self.label_map[mask]
 
         feed_dict = {
             "data": image,
@@ -641,6 +646,7 @@ def main():
     args.batch_size = args.batch_size * max(len(device_list), 1)
 
     if args.dataset == "cityscapes":
+        print('CROP SIZE', (args.crop_size, args.crop_size * 2))
         dataset = CityscapesDataset(args.path, (args.crop_size, args.crop_size * 2))
     elif args.dataset == "ade20k":
         dataset = ADE20KDataset(args.path, crop_size=args.crop_size)
@@ -664,16 +670,28 @@ def main():
     interaction = AverageMeter(is_distributed=False)
     union = AverageMeter(is_distributed=False)
     iou = SegIOU(len(dataset.classes))
+    print(args.path)
     with torch.inference_mode():
         with tqdm(total=len(data_loader), desc=f"Eval {args.model} on {args.dataset}") as t:
             for feed_dict in data_loader:
                 images, mask = feed_dict["data"].cuda(), feed_dict["label"].cuda()
+                print('data input shape', images.shape)
                 # compute output
                 output = model(images)
+                print('output', output)
+                print('output.shape', output.shape)
+                print('mask.shape', mask.shape)
                 # resize the output to match the shape of the mask
                 if output.shape[-2:] != mask.shape[-2:]:
-                    output = resize(output, size=mask.shape[-2:])
+                    print('RESIZE!', mask.shape[-2:])
+                    print('POSSIBLE RESIZE!', mask.shape[1:3])
+                    #output = resize(output, size=mask.shape[-2:])
+                    output = resize(output, size=mask.shape[1:3])
+
+                print('output.shape', output.shape)
+                print('mask.shape', mask.shape)
                 output = torch.argmax(output, dim=1)
+                '''
                 stats = iou(output, mask)
                 interaction.update(stats["i"])
                 union.update(stats["u"])
@@ -685,16 +703,21 @@ def main():
                     }
                 )
                 t.update()
+                '''
 
                 if args.save_path is not None:
                     with open(os.path.join(args.save_path, "summary.txt"), "a") as fout:
                         for i, (idx, image_path) in enumerate(zip(feed_dict["index"], feed_dict["image_path"])):
                             pred = output[i].cpu().numpy()
+                            print(image_path)
                             raw_image = np.array(Image.open(image_path).convert("RGB"))
                             canvas = get_canvas(raw_image, pred, dataset.class_colors)
-                            canvas = Image.fromarray(canvas)
-                            canvas.save(os.path.join(args.save_path, f"{idx}.png"))
-                            fout.write(f"{idx}:\t{image_path}\n")
+                            #canvas = Image.fromarray(canvas)
+                            canvas = Image.fromarray(canvas).save(os.path.join(args.save_path, f"{idx}.png"))
+                            #canvas.save(os.path.join(args.save_path, f"{idx}.png"))
+                            print(idx)
+                            print(image_path)
+                            #fout.write(f"{idx}:\t{image_path}\n")
 
     print(f"mIoU = {(interaction.sum / union.sum).cpu().mean().item() * 100:.3f}")
 

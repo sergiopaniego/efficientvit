@@ -27,3 +27,5 @@ gradio-sbmp-promptable-image
 
 wandb
 scikit-image
+mpi4py
+h5py

@@ -23,22 +23,27 @@ def main():
     args, opt = parser.parse_known_args()
     opt = parse_unknown_args(opt)
 
-    setup.setup_dist_env()
+    #setup.setup_dist_env()p
 
     os.makedirs(args.path, exist_ok=True)
     dump_config(args.__dict__, os.path.join(args.path, "args.yaml"))
 
-    setup.setup_seed(args.manual_seed, args.resume)
+    #setup.setup_seed(args.manual_seed, args.resume)
 
     config = setup.setup_exp_config(args.config, recursive=True, opt_args=opt)
 
-    setup.save_exp_config(config, args.path)
+    #setup.save_exp_config(config, args.path)
 
-    data_provider = setup.setup_data_provider(config, [SEGDataProvider], is_distributed=True) ###
+    print(config)
+
+    #data_provider = setup.setup_data_provider(config, [SEGDataProvider], is_distributed=True) ###
+    data_provider = setup.setup_data_provider(config, [SEGDataProvider], is_distributed=False) ###
+
 
     run_config = setup.setup_run_config(config, SEGRunConfig) ###
 
-    model = seg_model_zoo(config["net_config"]["name"], False) ###
+    #model = create_seg_model(config["net_config"]["name"], False) ###
+    model = create_seg_model(config["net_config"]["name"], 'cityscapes')
 
     trainer = SEGTrainer( ###
         path=args.path,
@@ -59,7 +64,8 @@ def main():
         trainer.load_model()
         trainer.data_provider = setup.setup_data_provider(config, [SEGDataProvider], is_distributed=True) ###
     else:
-        trainer.sync_model()
+        pass
+        #trainer.sync_model()
 
     trainer.train()
 

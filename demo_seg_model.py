@@ -66,13 +66,20 @@ def main():
 
     with torch.inference_mode():
         data = torch.unsqueeze(data, dim=0).cuda()
+        print('data input shape', data.shape)
         output = model(data)
+        print('output', output)
+        print('image.shape', image.shape)
+        print('output.shape', output.shape)
         # resize the output to match the shape of the mask
         if output.shape[-2:] != image.shape[:2]:
             output = resize(output, size=image.shape[:2])
+        print('output.shape', output.shape)    
         output = torch.argmax(output, dim=1).cpu().numpy()[0]
         canvas = get_canvas(image, output, class_colors)
         canvas = Image.fromarray(canvas).save(args.output_path)
+
+    print(args.output_path)
 
 
 if __name__ == "__main__":

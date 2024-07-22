@@ -96,15 +96,19 @@ def setup_data_provider(
     dp_config["batch_size"] = dp_config["train_batch_size"] = dp_config["base_batch_size"]
 
     data_provider_lookup = {provider.name: provider for provider in data_provider_classes}
+    print('***********')
+    print(data_provider_lookup)
+    print('***********')
     data_provider_class = data_provider_lookup[dp_config["dataset"]]
 
     data_provider_kwargs = build_kwargs_from_config(dp_config, data_provider_class)
+    print(data_provider_class)
     data_provider = data_provider_class(**data_provider_kwargs)
     return data_provider
 
 
 def setup_run_config(exp_config: dict, run_config_cls: type[RunConfig]) -> RunConfig:
-    exp_config["run_config"]["init_lr"] = exp_config["run_config"]["base_lr"] * get_dist_size()
+    exp_config["run_config"]["init_lr"] = exp_config["run_config"]["base_lr"] #* get_dist_size()
 
     run_config = run_config_cls(**exp_config["run_config"])
 

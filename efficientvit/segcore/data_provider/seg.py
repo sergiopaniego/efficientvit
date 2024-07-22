@@ -1,4 +1,8 @@
 import json
+import glob
+import os
+import h5py
+
 
 import numpy as np
 import torch
@@ -10,9 +14,9 @@ from torch.utils.data.distributed import DistributedSampler
 
 from efficientvit.apps.data_provider import DataProvider
 from efficientvit.segcore.data_provider.utils import (################3
-    #Normalize_and_Pad,
+    Normalize_and_Pad,
     #RandomHFlip,
-    #ResizeLongestSide,
+    ResizeLongestSide,
     SEGDistributedSampler, ############
 )
 
@@ -61,7 +65,8 @@ class CARLADataset(Dataset):
 
         sample = {
             'image': torch.tensor(file['rgb'][idx], dtype=torch.float32).permute(2, 0, 1),
-            'segmentation': torch.tensor(file['segmentation'][idx], dtype=torch.float32).permute(2, 0, 1)
+            'masks': torch.tensor(file['segmentation'][idx], dtype=torch.float32).permute(2, 0, 1),
+            "shape": torch.tensor(torch.tensor(file['rgb'][idx], dtype=torch.float32).permute(2, 0, 1).shape[-2:]),
         }
 
         if self.transform:
@@ -69,7 +74,8 @@ class CARLADataset(Dataset):
 
 
         sample['image'] = sample['image'] / 255.0
-        sample['segmentation'] = sample['segmentation'] / 255.0
+        sample['masks'] = sample['masks'] / 255.0
+
        
         return sample
 
@@ -184,16 +190,16 @@ class SEGDataProvider(DataProvider):
     def build_train_transform(self):
         train_transforms = [
             #RandomHFlip(),
-            #ResizeLongestSide(target_length=self.image_size[0]),
-            #Normalize_and_Pad(target_length=self.image_size[0]),
+            ResizeLongestSide(target_length=self.image_size[0]),
+            Normalize_and_Pad(target_length=self.image_size[0]),
         ]
 
         return transforms.Compose(train_transforms)
 
     def build_valid_transform(self):
         valid_transforms = [
-            #ResizeLongestSide(target_length=self.image_size[0]),
-            #Normalize_and_Pad(target_length=self.image_size[0]),
+            ResizeLongestSide(target_length=self.image_size[0]),
+            Normalize_and_Pad(target_length=self.image_size[0]),
         ]
 
         return transforms.Compose(valid_transforms)
@@ -205,8 +211,8 @@ class SEGDataProvider(DataProvider):
         #train_dataset = OnlineDataset(root=self.root, train=True, num_masks=self.num_masks, transform=train_transform)
         #val_dataset = OnlineDataset(root=self.root, train=False, num_masks=2, transform=valid_transform)
 
-        train_dataset = CARLADataset(root=f"{self.root}train", transform=train_transform)
-        val_dataset = CARLADataset(root=f"{self.root}val", transform=valid_transform)
+        train_dataset = CARLADataset(directory=f"{self.root}train", transform=train_transform)
+        val_dataset = CARLADataset(directory=f"{self.root}val", transform=valid_transform)
 
         test_dataset = None
 
@@ -216,12 +222,14 @@ class SEGDataProvider(DataProvider):
         if dataset is None:
             return None
         if train:
-            sampler = SEGDistributedSampler(dataset, sub_epochs_per_epoch=self.sub_epochs_per_epoch) #################################
-            dataloader = DataLoader(dataset, batch_size, sampler=sampler, drop_last=True, num_workers=n_worker)
+            #sampler = SEGDistributedSampler(dataset, sub_epochs_per_epoch=self.sub_epochs_per_epoch) #################################
+            #dataloader = DataLoader(dataset, batch_size, sampler=sampler, drop_last=True, num_workers=n_worker)
+            dataloader = DataLoader(dataset, batch_size, drop_last=True, num_workers=n_worker)
             return dataloader
         else:
-            sampler = DistributedSampler(dataset, shuffle=False)
-            dataloader = DataLoader(dataset, batch_size, sampler=sampler, drop_last=False, num_workers=n_worker)
+            #sampler = DistributedSampler(dataset, shuffle=False)
+            #dataloader = DataLoader(dataset, batch_size, sampler=sampler, drop_last=False, num_workers=n_worker)
+            dataloader = DataLoader(dataset, batch_size, drop_last=False, num_workers=n_worker)
             return dataloader
 
     def set_epoch_and_sub_epoch(self, epoch: int, sub_epoch: int) -> None:

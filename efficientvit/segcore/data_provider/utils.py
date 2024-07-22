@@ -107,7 +107,7 @@ class RandomHFlip(object):
 
         return {"image": image, "masks": masks, "points": points, "bboxs": bboxs, "shape": shape}
 '''
-'''
+
 class ResizeLongestSide(object):
     """
     Modified from https://github.com/facebookresearch/segment-anything/blob/6fdee8f2727f4506cfbbe553e23b895e27956588/segment_anything/utils/transforms.py.
@@ -119,7 +119,7 @@ class ResizeLongestSide(object):
     def apply_image(self, image: torch.Tensor, original_size: Tuple[int, ...]) -> torch.Tensor:
         target_size = self.get_preprocess_shape(original_size[0], original_size[1], self.target_length)
         return F.interpolate(image, target_size, mode="bilinear", align_corners=False, antialias=True)
-
+    '''
     def apply_boxes(self, boxes: torch.Tensor, original_size: Tuple[int, ...]) -> torch.Tensor:
         """
         Expects a torch tensor with shape Bx4. Requires the original image
@@ -127,7 +127,7 @@ class ResizeLongestSide(object):
         """
         boxes = self.apply_coords(boxes.reshape(-1, 2, 2), original_size)
         return boxes.reshape(-1, 4)
-
+    '''
     def apply_coords(self, coords: torch.Tensor, original_size: Tuple[int, ...]) -> torch.Tensor:
         """
         Expects a torch tensor with length 2 in the last dimension. Requires the
@@ -152,33 +152,28 @@ class ResizeLongestSide(object):
         return (newh, neww)
 
     def __call__(self, sample):
-        image, masks, points, bboxs, shape = (
+        image, masks, shape = (
             sample["image"],
             sample["masks"],
-            sample["points"],
-            sample["bboxs"],
             sample["shape"],
         )
 
         image = self.apply_image(image.unsqueeze(0), shape).squeeze(0)
         masks = self.apply_image(masks.unsqueeze(1), shape).squeeze(1)
-        points = self.apply_coords(points, shape)
-        bboxs = self.apply_boxes(bboxs, shape)
 
-        return {"image": image, "masks": masks, "points": points, "bboxs": bboxs, "shape": shape}
-'''
-'''
+        return {"image": image, "masks": masks, "shape": shape}
+        #return {"image": image, "masks": masks}
+
+
 class Normalize_and_Pad(object):
     def __init__(self, target_length: int) -> None:
         self.target_length = target_length
         self.transform = transforms.Normalize(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375])
 
     def __call__(self, sample):
-        image, masks, points, bboxs, shape = (
+        image, masks, shape = (
             sample["image"],
             sample["masks"],
-            sample["points"],
-            sample["bboxs"],
             sample["shape"],
         )
 
@@ -191,5 +186,5 @@ class Normalize_and_Pad(object):
         image = F.pad(image.unsqueeze(0), (0, padw, 0, padh), value=0).squeeze(0)
         masks = F.pad(masks.unsqueeze(1), (0, padw, 0, padh), value=0).squeeze(1)
 
-        return {"image": image, "masks": masks, "points": points, "bboxs": bboxs, "shape": shape}
-'''
+        return {"image": image, "masks": masks, "shape": shape}
+        #return {"image": image, "masks": masks}
