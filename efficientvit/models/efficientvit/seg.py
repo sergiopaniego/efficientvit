@@ -265,8 +265,6 @@ def efficientvit_seg_l1(dataset: str, **kwargs) -> EfficientViTSeg:
     from efficientvit.models.efficientvit.backbone import efficientvit_backbone_l1
 
     backbone = efficientvit_backbone_l1(**kwargs)
-    print('!!!!!!!!!')
-    print(dataset)
     if dataset == "cityscapes":
         head = SegHead(
             fid_list=["stage4", "stage3", "stage2"],
