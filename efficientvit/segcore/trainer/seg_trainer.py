@@ -16,7 +16,8 @@ from efficientvit.segcore.trainer import SEGRunConfig ####
 from efficientvit.segcore.trainer.utils import ( ####
     compute_boundary_iou,
     compute_iou,
-    loss_masks,
+    dice_loss,
+    #loss_masks,
     mask_iou_batch,
     masks_sample_points,
 )
@@ -43,9 +44,9 @@ class SEGTrainer(Trainer): ####
 
 
     def _validate(self, model, data_loader, epoch: int, sub_epoch: int) -> dict[str, any]:
-        val_loss = AverageMeter()
-        val_iou = AverageMeter()
-        val_iou_boundary = AverageMeter()
+        val_loss = AverageMeter(False)
+        val_iou = AverageMeter(False)
+        val_iou_boundary = AverageMeter(False)
 
         with torch.no_grad():
             with tqdm(
@@ -158,96 +159,28 @@ class SEGTrainer(Trainer): ####
     def run_step(self, feed_dict: dict[str, any]) -> dict[str, any]:
         image = feed_dict["image"]
         masks = feed_dict["masks"]
-        #bboxs = feed_dict["bboxs"]
-        #points = feed_dict["points"]
-        '''
-        batched_input = []
-        for b_i in range(len(image)):
-            dict_input = dict()
-            dict_input["image"] = image[b_i]
-            
-            if random.random() >= 0.5:
-                dict_input["boxes"] = bboxs[b_i]
-            else:
-                try:
-                    n_p = int(random.random() * 10 + 1)
-                    dict_input["point_coords"] = masks_sample_points(masks[b_i], k=n_p)
-                    if image.shape[2] == 512:
-                        dict_input["point_coords"] = dict_input["point_coords"] * 2
-                    dict_input["point_labels"] = torch.ones((points[b_i].shape[0], n_p), device=image.device)
-                except:
-                    dict_input["boxes"] = bboxs[b_i]
         
-            batched_input.append(dict_input)
-        '''
-        print(feed_dict)
         batched_input = image
         with torch.autocast(device_type="cuda", dtype=self.amp_dtype, enabled=self.enable_amp):
-            #if random.random() >= 0.5:
-            #    output, iou_predictions = self.model(batched_input, multimask_output=True)
-            #else:
-            #    output, iou_predictions = self.model(batched_input, multimask_output=False)
-            print(batched_input)
-            print(type(batched_input))
-            print(len(batched_input))
-            '''
-            print('***************')
-            print(batched_input[0])
-            print('***************')
-            print(batched_input[1])
-            print('***************')
-            print(batched_input[2])
-            print('***************')
-            print(batched_input[3])
-            print('***************')
-            print(batched_input[0].keys())
-            '''
-            print('Tipo de modelo: ', type(self.model))
             output = self.model(batched_input)
-            #output, iou_predictions = self.model(batched_input)
-            print(type(output))
-            print(output.shape)
-            print((image.shape[2], image.shape[3]))
-            print('------')
-            print(masks.shape)
-            # masks = masks.reshape(-1, image.shape[2], image.shape[3]).unsqueeze(1)
-            print(masks.shape)
-            print('------')
 
-            loss_list = []
-            for i in range(output.shape[2]):
-                #output_i = (
-                #    F.interpolate(output[:, :, i], size=(image.shape[2], image.shape[3]), mode="bilinear")
-                #    .reshape(-1, image.shape[2], image.shape[3])
-                #    .unsqueeze(1)
-                #)
-                output_i = (
-                    F.interpolate(output[:, i, :, :].unsqueeze(1), size=(image.shape[2], image.shape[3]), mode="bilinear")
-                    .reshape(-1, image.shape[2], image.shape[3])
-                    .unsqueeze(1)
-                )
-                print('------')
-                print(output_i.shape)
-                print('------')
-                print(masks.shape)
-                print('------')
-                loss_mask_i, loss_dice_i = loss_masks(output_i, masks, len(output_i), mode="none")
-                loss_i = loss_mask_i * 20 + loss_dice_i
-                loss_list.append(loss_i)
-            loss = torch.stack(loss_list, -1)
+            # Interpolate if neccesary
+            if output.shape[2:] != image.shape[2:]:
+                output = F.interpolate(output, size=(image.shape[2], image.shape[3]), mode="bilinear", align_corners=False)
 
-            min_indices = torch.argmin(loss, dim=1)
-            mask = torch.zeros_like(loss, device=loss.device)
-            mask.scatter_(1, min_indices.unsqueeze(1), 1)
+            # Calculate semantic segmentation loss
+            loss_ce = F.cross_entropy(output, masks, reduction='mean')
+            loss_dice = dice_loss(output, masks)  # Asumiendo que hay una función dice_loss definida
 
-            loss = (loss * mask).mean() * loss.shape[-1]
+            # Combination of losses
+            loss = loss_ce + loss_dice
 
         self.scaler.scale(loss).backward()
 
         return {"loss": loss, "output": output}
 
     def _train_one_sub_epoch(self, epoch: int, sub_epoch: int) -> dict[str, any]:
-        train_loss = AverageMeter()
+        train_loss = AverageMeter(False)
 
         with tqdm(
             total=len(self.data_provider.train),

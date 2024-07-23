@@ -65,19 +65,49 @@ class CARLADataset(Dataset):
 
         sample = {
             'image': torch.tensor(file['rgb'][idx], dtype=torch.float32).permute(2, 0, 1),
-            'masks': torch.tensor(file['segmentation'][idx], dtype=torch.float32).permute(2, 0, 1),
+            #'masks': torch.tensor(file['segmentation'][idx], dtype=torch.float32).permute(2, 0, 1),
+            'masks': self.convert_rgb_to_class(file['segmentation'][idx]),
             "shape": torch.tensor(torch.tensor(file['rgb'][idx], dtype=torch.float32).permute(2, 0, 1).shape[-2:]),
-        }
+        }        
 
         if self.transform:
             sample = self.transform(sample)
-
-
-        sample['image'] = sample['image'] / 255.0
-        sample['masks'] = sample['masks'] / 255.0
-
        
         return sample
+
+    def convert_rgb_to_class(self, mask):
+        """ Convert an RGB mask to a single channel class mask """
+        mask = torch.tensor(mask, dtype=torch.float32)
+        mask_class = torch.zeros(mask.shape[:2], dtype=torch.long)
+
+        # Assuming you have a mapping from RGB to class values
+        # This is a placeholder example; adjust it based on your actual mappings
+        rgb_to_class = {
+            (128, 64, 128): 0, # "road"
+            (244, 35, 232): 1, # "sidewalk"
+            (70, 70, 70): 2, # "building"
+            (102, 102, 156): 3, # "wall"
+            (190, 153, 153): 4, # "fence"
+            (153, 153, 153): 5, # "pole"
+            (250, 170, 30): 6, # "traffic light"
+            (220, 220, 0): 7, # "traffic sign"
+            (107, 142, 35): 8, # "vegetation"
+            (152, 251, 152): 9, # "terrain"
+            (70, 130, 180): 10, # "sky"
+            (220, 20, 60): 11, # "person"
+            (255, 0, 0): 12, # "rider"
+            (0, 0, 142): 13, # "car"
+            (0, 0, 70): 14, # "truck"
+            (0, 60, 100): 15, # "bus"
+            (0, 80, 100): 16, # "train"
+            (0, 0, 230): 17, # "motorcycle"
+            (119, 11, 32): 18, # "bicycle"
+        }
+
+        for rgb, class_value in rgb_to_class.items():
+            mask_class[(mask == torch.tensor(rgb, dtype=torch.float32)).all(dim=-1)] = class_value
+
+        return mask_class
 
     def close(self):
         for file in self.files:

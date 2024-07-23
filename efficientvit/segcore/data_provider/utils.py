@@ -116,53 +116,31 @@ class ResizeLongestSide(object):
     def __init__(self, target_length: int) -> None:
         self.target_length = target_length
 
-    def apply_image(self, image: torch.Tensor, original_size: Tuple[int, ...]) -> torch.Tensor:
-        target_size = self.get_preprocess_shape(original_size[0], original_size[1], self.target_length)
-        return F.interpolate(image, target_size, mode="bilinear", align_corners=False, antialias=True)
-    '''
-    def apply_boxes(self, boxes: torch.Tensor, original_size: Tuple[int, ...]) -> torch.Tensor:
-        """
-        Expects a torch tensor with shape Bx4. Requires the original image
-        size in (H, W) format.
-        """
-        boxes = self.apply_coords(boxes.reshape(-1, 2, 2), original_size)
-        return boxes.reshape(-1, 4)
-    '''
-    def apply_coords(self, coords: torch.Tensor, original_size: Tuple[int, ...]) -> torch.Tensor:
-        """
-        Expects a torch tensor with length 2 in the last dimension. Requires the
-        original image size in (H, W) format.
-        """
-        old_h, old_w = original_size
-        new_h, new_w = self.get_preprocess_shape(original_size[0], original_size[1], self.target_length)
-        coords = deepcopy(coords).to(torch.float)
-        coords[..., 0] = coords[..., 0] * (new_w / old_w)
-        coords[..., 1] = coords[..., 1] * (new_h / old_h)
-        return coords
-
-    @staticmethod
-    def get_preprocess_shape(oldh: int, oldw: int, long_side_length: int) -> Tuple[int, int]:
-        """
-        Compute the output size given input size and target long side length.
-        """
-        scale = long_side_length * 1.0 / max(oldh, oldw)
-        newh, neww = oldh * scale, oldw * scale
-        neww = int(neww + 0.5)
-        newh = int(newh + 0.5)
+    def get_preprocess_shape(self, oldh: int, oldw: int, long_side_length: int) -> Tuple[int, int]:
+        scale = long_side_length / max(oldh, oldw)
+        newh, neww = int(oldh * scale), int(oldw * scale)
         return (newh, neww)
 
-    def __call__(self, sample):
-        image, masks, shape = (
-            sample["image"],
-            sample["masks"],
-            sample["shape"],
-        )
+    def apply_image(self, image: torch.Tensor, original_size: Tuple[int, ...]) -> torch.Tensor:
+        target_size = self.get_preprocess_shape(original_size[0], original_size[1], self.target_length)
+        return F.interpolate(image.unsqueeze(0), size=target_size, mode="bilinear", align_corners=False, antialias=True).squeeze(0)
 
-        image = self.apply_image(image.unsqueeze(0), shape).squeeze(0)
-        masks = self.apply_image(masks.unsqueeze(1), shape).squeeze(1)
+    def apply_mask(self, mask: torch.Tensor, original_size: Tuple[int, ...]) -> torch.Tensor:
+        target_size = self.get_preprocess_shape(original_size[0], original_size[1], self.target_length)
+        mask = mask.unsqueeze(0).unsqueeze(0).float()  # Asegurarse de que tenga forma [1, 1, H, W]
+        resized_mask = F.interpolate(mask, size=target_size, mode="nearest").squeeze(0).squeeze(0).long()
+        return resized_mask
 
-        return {"image": image, "masks": masks, "shape": shape}
-        #return {"image": image, "masks": masks}
+    def __call__(self, sample: dict) -> dict:
+        image = sample['image']
+        masks = sample['masks']
+        original_size = image.shape[1:]  # Assumes image is [C, H, W]
+
+        sample['image'] = self.apply_image(image, original_size)        
+        sample['masks'] = self.apply_mask(masks, original_size)
+        sample['shape'] = torch.tensor(sample['image'].shape[-2:])
+
+        return sample
 
 
 class Normalize_and_Pad(object):
@@ -184,7 +162,9 @@ class Normalize_and_Pad(object):
         padw = self.target_length - w
 
         image = F.pad(image.unsqueeze(0), (0, padw, 0, padh), value=0).squeeze(0)
-        masks = F.pad(masks.unsqueeze(1), (0, padw, 0, padh), value=0).squeeze(1)
+        #masks = F.pad(masks.unsqueeze(1), (0, padw, 0, padh), value=0).squeeze(1)   
+        masks = F.pad(masks.unsqueeze(0).float(), (0, padw, 0, padh), value=0).squeeze(0).long()
+
 
         return {"image": image, "masks": masks, "shape": shape}
         #return {"image": image, "masks": masks}

@@ -57,7 +57,8 @@ def get_dist_local_rank() -> int:
 def sync_tensor(tensor: torch.Tensor or float, reduce="mean") -> torch.Tensor or list[torch.Tensor]:
     if not isinstance(tensor, torch.Tensor):
         tensor = torch.Tensor(1).fill_(tensor).cuda()
-    tensor_list = [torch.empty_like(tensor) for _ in range(get_dist_size())]
+    # tensor_list = [torch.empty_like(tensor) for _ in range(get_dist_size())]
+    tensor_list = [torch.empty_like(tensor)]
     torch.distributed.all_gather(tensor_list, tensor.contiguous(), async_op=False)
     if reduce == "mean":
         return list_mean(tensor_list)
