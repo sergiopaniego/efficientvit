@@ -61,6 +61,7 @@ class Trainer:
         epoch=0,
         model_name=None,
     ) -> None:
+        '''
         if is_master():
             if checkpoint is None:
                 if only_state_dict:
@@ -75,6 +76,28 @@ class Trainer:
                         "ema": self.ema.state_dict() if self.ema is not None else None,
                         "scaler": self.scaler.state_dict() if self.enable_amp else None,
                     }
+
+            model_name = model_name or "checkpoint.pt"
+
+            latest_fname = os.path.join(self.checkpoint_path, "latest.txt")
+            model_path = os.path.join(self.checkpoint_path, model_name)
+            with open(latest_fname, "w") as _fout:
+                _fout.write(model_path + "\n")
+            torch.save(checkpoint, model_path)
+        '''
+        if checkpoint is None:
+            if only_state_dict:
+                checkpoint = {"state_dict": self.network.state_dict()}
+            else:
+                checkpoint = {
+                    "state_dict": self.network.state_dict(),
+                    "epoch": epoch,
+                    "best_val": self.best_val,
+                    "optimizer": self.optimizer.state_dict(),
+                    "lr_scheduler": self.lr_scheduler.state_dict(),
+                    "ema": self.ema.state_dict() if self.ema is not None else None,
+                    "scaler": self.scaler.state_dict() if self.enable_amp else None,
+                }
 
             model_name = model_name or "checkpoint.pt"
 

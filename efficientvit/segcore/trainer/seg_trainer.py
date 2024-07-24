@@ -7,6 +7,8 @@ import torch.nn.functional as F
 import wandb
 from PIL import Image
 from tqdm import tqdm
+from datetime import datetime
+
 
 from efficientvit.apps.trainer import Trainer
 from efficientvit.apps.utils import AverageMeter#, get_dist_local_rank, get_dist_size, is_master, sync_tensor
@@ -45,8 +47,10 @@ class SEGTrainer(Trainer): ####
 
     def _validate(self, model, data_loader, epoch: int, sub_epoch: int) -> dict[str, any]:
         val_loss = AverageMeter(False)
-        val_iou = AverageMeter(False)
-        val_iou_boundary = AverageMeter(False)
+        #val_iou = AverageMeter(False)
+        #val_iou_boundary = AverageMeter(False)
+        val_loss_ce = AverageMeter(False)
+        val_loss_dice = AverageMeter(False)
 
         with torch.no_grad():
             with tqdm(
@@ -58,6 +62,21 @@ class SEGTrainer(Trainer): ####
                 for i, data in enumerate(data_loader):
                     image = data["image"].cuda()
                     masks = data["masks"].cuda()
+                    batched_input = image
+                    output = self.model(batched_input)
+
+                    # Interpolate if neccesary
+                    if output.shape[2:] != image.shape[2:]:
+                        output = F.interpolate(output, size=(image.shape[2], image.shape[3]), mode="bilinear", align_corners=False)
+
+                    # Calculate semantic segmentation loss
+                    loss_ce = F.cross_entropy(output, masks, reduction='mean')
+                    loss_dice = dice_loss(output, masks)  # Asumiendo que hay una función dice_loss definida
+
+                    # Combination of losses
+                    loss = loss_ce + loss_dice
+                    '''
+
                     #bboxs = data["bboxs"].cuda() * 2 if image.shape[2] == 512 else data["bboxs"].cuda()
                     #points = data["points"].cuda() * 2 if image.shape[2] == 512 else data["points"].cuda()
 
@@ -99,19 +118,23 @@ class SEGTrainer(Trainer): ####
                     #loss = sync_tensor(loss)
                     #iou = sync_tensor(iou)
                     #boundary_iou = sync_tensor(boundary_iou)
-
+                    '''
                     #val_loss.update(loss, image.shape[0] * get_dist_size())
                     #val_iou.update(iou, image.shape[0] * get_dist_size())
                     #val_iou_boundary.update(boundary_iou, image.shape[0] * get_dist_size())
                     val_loss.update(loss, image.shape[0])
+                    val_loss_ce.update(loss_ce, image.shape[0])
+                    val_loss_dice.update(loss_dice, image.shape[0])
                     #val_iou.update(iou, image.shape[0])
                     #val_iou_boundary.update(boundary_iou, image.shape[0])
-
+                    
                     t.set_postfix(
                         {
                             "loss": val_loss.avg,
-                            "iou": val_iou.avg,
-                            "boundary_iou": val_iou_boundary.avg,
+                            "loss_ce": val_loss_ce.avg,
+                            "loss_dice": val_loss_dice.avg,
+                            #"iou": val_iou.avg,
+                            #"boundary_iou": val_iou_boundary.avg,
                             #"bs": image.shape[0] * get_dist_size(),
                             "bs": image.shape[0],
                         }
@@ -123,13 +146,19 @@ class SEGTrainer(Trainer): ####
             #    {"val_loss": val_loss.avg, "val_iou": val_iou.avg, "val_boundary_iou": val_iou_boundary.avg}
             #)
         self.wandb_log.log(
-            {"val_loss": val_loss.avg, "val_iou": val_iou.avg, "val_boundary_iou": val_iou_boundary.avg}
+            {
+                "val_loss": val_loss.avg, 
+                "val_loss_ce": val_loss_ce.avg,
+                "val_loss_dice": val_loss_dice.avg,
+                #"val_iou": val_iou.avg, 
+                #"val_boundary_iou": val_iou_boundary.avg
+                }
         )
 
         return {
             "val_loss": val_loss.avg,
-            "val_iou": val_iou.avg,
-            "val_boundary_iou": val_iou_boundary.avg,
+            #"val_iou": val_iou.avg,
+            #"val_boundary_iou": val_iou_boundary.avg,
         }
 
     def validate(self, model=None, data_loader=None, epoch=0, sub_epoch=0) -> dict[str, any]:
@@ -177,10 +206,12 @@ class SEGTrainer(Trainer): ####
 
         self.scaler.scale(loss).backward()
 
-        return {"loss": loss, "output": output}
+        return {"loss": loss, "loss_ce": loss_ce, "loss_dice": loss_dice, "output": output}
 
     def _train_one_sub_epoch(self, epoch: int, sub_epoch: int) -> dict[str, any]:
         train_loss = AverageMeter(False)
+        train_loss_ce = AverageMeter(False)
+        train_loss_dice = AverageMeter(False)
 
         with tqdm(
             total=len(self.data_provider.train),
@@ -201,9 +232,13 @@ class SEGTrainer(Trainer): ####
                 self.after_step()
 
                 loss = output_dict["loss"]
+                loss_ce = output_dict["loss_ce"]
+                loss_dice = output_dict["loss_dice"]
                 #loss = sync_tensor(loss)
                 #train_loss.update(loss, data["image"].shape[0] * get_dist_size())
                 train_loss.update(loss, data["image"].shape[0])
+                train_loss_ce.update(loss_ce, data["image"].shape[0])
+                train_loss_dice.update(loss_dice, data["image"].shape[0])
 
                 #if is_master():
                 #    self.wandb_log.log(
@@ -217,6 +252,8 @@ class SEGTrainer(Trainer): ####
                 self.wandb_log.log(
                     {
                         "train_loss": train_loss.avg,
+                        "train_loss_ce": train_loss_ce.avg,
+                        "train_loss_dice": train_loss_dice.avg,
                         "epoch": epoch,
                         "sub_epoch": sub_epoch,
                         "learning_rate": sorted(set([group["lr"] for group in self.optimizer.param_groups]))[0],
@@ -226,6 +263,8 @@ class SEGTrainer(Trainer): ####
                 t.set_postfix(
                     {
                         "loss": train_loss.avg,
+                        "train_loss_ce": train_loss_ce.avg,
+                        "train_loss_dice": train_loss_dice.avg,
                         #"bs": data["image"].shape[0] * get_dist_size(),
                         "bs": data["image"].shape[0],
                         "res": data["image"].shape[2],
@@ -253,6 +292,8 @@ class SEGTrainer(Trainer): ####
         return train_info_dict
 
     def train(self) -> None:
+        starting_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+
         for sub_epoch in range(self.start_epoch, self.run_config.n_epochs):
             epoch = sub_epoch // self.data_provider.sub_epochs_per_epoch
 
@@ -260,14 +301,15 @@ class SEGTrainer(Trainer): ####
 
             val_info_dict = self.validate(epoch=epoch, sub_epoch=sub_epoch)
 
-            val_iou = val_info_dict["val_iou"]
+            # val_iou = val_info_dict["val_iou"]
+            val_iou = val_info_dict["val_loss"]
             is_best = val_iou > self.best_val
             self.best_val = max(val_iou, self.best_val)
 
             self.save_model(
                 only_state_dict=False,
                 epoch=sub_epoch,
-                model_name=f"checkpoint_{epoch}_{sub_epoch}.pt",
+                model_name=f"{starting_datetime}_checkpoint_{epoch}_{sub_epoch}.pt",
             )
 
     def prep_for_training(self, run_config: SEGRunConfig, amp="fp32") -> None: ####
