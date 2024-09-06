@@ -11,11 +11,12 @@ data_provider:
   drop_last: true
 
 net_config:
+  project_name: atlas
   name: l1
   ckpt: assets/checkpoints/seg/cityscapes/l1.pt
 
 run_config:
-  n_epochs: 80 # number of sub epochs; number of SA-1B epoch = n_epochs / sub_epochs_per_epoch
+  n_epochs: 300 # number of sub epochs; number of SA-1B epoch = n_epochs / sub_epochs_per_epoch
   base_lr: 0.0000004 # learning rate per batch; global learning rate = base_lr * world_size
   warmup_epochs: 0
   warmup_lr: 0.0

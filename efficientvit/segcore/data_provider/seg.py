@@ -34,7 +34,7 @@ class CARLADataset(Dataset):
         """
         self.file_paths = glob.glob(os.path.join(directory, "*.hdf5"))
         self.file_paths.sort()  # Ensuring data is processed in order
-        self.file_paths = self.file_paths[:1] # DELETE! We take only 1 set of examples for debugging
+        #self.file_paths = self.file_paths[:1] # DELETE! We take only 1 set of examples for debugging
         
         self.transform = transform
 

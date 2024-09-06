@@ -33,6 +33,7 @@ class SEGTrainer(Trainer): ####
         path: str,
         model: nn.Module,
         data_provider: SEGDataProvider, ####
+        project_name: str,
     ) -> None:
         super().__init__(
             path=path,
@@ -40,9 +41,13 @@ class SEGTrainer(Trainer): ####
             data_provider=data_provider,
         )
 
+        self.starting_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         #if is_master():
             #self.wandb_log = wandb.init(project="efficientvit-seg") ####
-        self.wandb_log = wandb.init(project="efficientvit-seg") ####
+        self.wandb_log = wandb.init(
+            project=f"efficientvit-seg-{project_name}",
+            name=f"efficientvit-seg-{self.starting_datetime}"
+            )
 
 
     def _validate(self, model, data_loader, epoch: int, sub_epoch: int) -> dict[str, any]:
@@ -292,7 +297,6 @@ class SEGTrainer(Trainer): ####
         return train_info_dict
 
     def train(self) -> None:
-        starting_datetime = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
         for sub_epoch in range(self.start_epoch, self.run_config.n_epochs):
             epoch = sub_epoch // self.data_provider.sub_epochs_per_epoch
@@ -306,10 +310,11 @@ class SEGTrainer(Trainer): ####
             is_best = val_iou > self.best_val
             self.best_val = max(val_iou, self.best_val)
 
+            print(f'Saving model... {self.starting_datetime}_checkpoint_{epoch}_{sub_epoch}.pt')
             self.save_model(
                 only_state_dict=False,
                 epoch=sub_epoch,
-                model_name=f"{starting_datetime}_checkpoint_{epoch}_{sub_epoch}.pt",
+                model_name=f"{self.starting_datetime}_checkpoint_{epoch}_{sub_epoch}.pt",
             )
 
     def prep_for_training(self, run_config: SEGRunConfig, amp="fp32") -> None: ####

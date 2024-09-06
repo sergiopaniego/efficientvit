@@ -49,6 +49,7 @@ def main():
         path=args.path,
         model=model,
         data_provider=data_provider,
+        project_name=config['net_config']['project_name']
     )
 
     setup.init_model(
