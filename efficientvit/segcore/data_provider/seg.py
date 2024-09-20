@@ -115,6 +115,109 @@ class CARLADataset(Dataset):
         for file in self.files:
             file.close()
 
+
+class CARLACityScapesDataset(Dataset):
+    def __init__(self, directory, transform=None):
+        """
+        Args:
+            directory (string): Directory with all the hdf5 files containing the episode data.
+            transform (callable, optional): Optional transform to be applied
+                on a sample.
+        """
+        self.file_paths = glob.glob(os.path.join(directory, "*.hdf5"))
+        self.file_paths.sort()  # Ensuring data is processed in order
+        #self.file_paths = self.file_paths[:1] # DELETE! We take only 1 set of examples for debugging
+        
+        self.transform = transform
+
+        self.lengths = []
+        self.total_length = 0
+        self.files = []
+        for file_path in self.file_paths:
+            file = h5py.File(file_path, 'r')
+            self.files.append(file)
+            length = file['frame'].shape[0]
+            self.lengths.append(length)
+            self.total_length += length
+
+    def __len__(self):
+        return self.total_length
+    
+
+    # one hot encoding for high-level ommand
+    def __getitem__(self, idx):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
+
+        # find the file that contains the data for the given index
+        file_idx = 0
+        while idx >= self.lengths[file_idx]:
+            idx -= self.lengths[file_idx]
+            file_idx += 1
+
+        file = self.files[file_idx]
+
+        sample = {
+            'image': torch.tensor(file['rgb'][idx], dtype=torch.float32).permute(2, 0, 1),
+            #'masks': torch.tensor(file['segmentation'][idx], dtype=torch.float32).permute(2, 0, 1),
+            'masks': self.convert_rgb_to_class(file['segmentation'][idx]),
+            "shape": torch.tensor(torch.tensor(file['rgb'][idx], dtype=torch.float32).permute(2, 0, 1).shape[-2:]),
+        }        
+
+        if self.transform:
+            sample = self.transform(sample)
+       
+        return sample
+
+    def convert_rgb_to_class(self, mask):
+        ######
+        """ Convert an RGB mask to a single channel class mask """
+        mask = torch.tensor(mask, dtype=torch.float32)
+        mask_class = torch.zeros(mask.shape[:2], dtype=torch.long)
+
+        # Assuming you have a mapping from RGB to class values
+        # This is a placeholder example; adjust it based on your actual mappings
+        rgb_to_class = {
+            (0, 0, 0): 0, # "unlabeled"
+            (110, 190, 160): 1, # "static"
+            (170, 120, 50): 2, # "dynamic"
+            (81, 0, 81): 3, # "ground"
+            (128, 64, 128): 4, # "road"
+            (244, 35, 232): 5, # "sidewalk"
+            (230, 150, 140): 6, # "rail track"
+            (70, 70, 70): 7, # "building"
+            (102, 102, 156): 8, # "wall"
+            (190, 153, 153): 9, # "fence"
+            (180, 165, 180): 10, # "guard rail"
+            (150, 100, 100): 11, # "bridge"
+            (153, 153, 153): 12, # "pole"
+            (250, 170, 30): 13, # "traffic light"
+            (220, 220, 0): 14, # "traffic sign"
+            (107, 142, 35): 15, # "vegetation"
+            (152, 251, 152): 16, # "terrain"
+            (70, 130, 180): 17, # "sky"
+            (220, 20, 60): 18, # "person"
+            (255, 0, 0): 19, # "rider"
+            (0, 0, 142): 20, # "car"
+            (0, 0, 70): 21, # "truck"
+            (0, 60, 100): 22, # "bus"
+            (0, 80, 100): 23, # "train"
+            (0, 0, 230): 24, # "motorcycle"
+            (119, 11, 32): 25, # "bicycle"
+            (55, 90, 80): 26, # "other"
+            (45, 60, 150): 27, # "water"
+            (157, 234, 50): 28, # "road line"
+        }
+
+        for rgb, class_value in rgb_to_class.items():
+            mask_class[(mask == torch.tensor(rgb, dtype=torch.float32)).all(dim=-1)] = class_value
+
+        return mask_class
+
+    def close(self):
+        for file in self.files:
+            file.close()
+
             
 class OnlineDataset(Dataset):
     def __init__(self, root, train=True, num_masks=64, transform=None):
@@ -243,8 +346,12 @@ class SEGDataProvider(DataProvider):
         #train_dataset = OnlineDataset(root=self.root, train=True, num_masks=self.num_masks, transform=train_transform)
         #val_dataset = OnlineDataset(root=self.root, train=False, num_masks=2, transform=valid_transform)
 
-        train_dataset = CARLADataset(directory=f"{self.root}train", transform=train_transform)
-        val_dataset = CARLADataset(directory=f"{self.root}val", transform=valid_transform)
+#####
+        #train_dataset = CARLADataset(directory=f"{self.root}train", transform=train_transform)
+        #val_dataset = CARLADataset(directory=f"{self.root}val", transform=valid_transform)
+
+        train_dataset = CARLACityScapesDataset(directory=f"{self.root}train", transform=train_transform)
+        val_dataset = CARLACityScapesDataset(directory=f"{self.root}val", transform=valid_transform)
 
         test_dataset = None
 

@@ -96,7 +96,7 @@ def create_seg_model(
     print(model.backbone)
     print('------------------')
     print(model.head) 
-    
+    '''
     head = SegHead(
             fid_list=["stage4", "stage3", "stage2"],
             in_channel_list=[512, 256, 128],
@@ -113,6 +113,6 @@ def create_seg_model(
         )
 
     model = EfficientViTSeg(model.backbone, head)
-    
+    '''
 
     return model
