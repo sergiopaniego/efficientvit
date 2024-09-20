@@ -129,6 +129,9 @@ def init_model(
         zero_last_gamma(network, last_gamma)
 
     # load weight
+    '''
+    This loading process is also done in seg_model_zoo.pt
+    '''
     if init_from is not None and os.path.isfile(init_from):
         network.load_state_dict(load_state_dict_from_file(init_from))
         print(f"Loaded init from {init_from}")

@@ -19,6 +19,7 @@ from efficientvit.models.nn import (
 from efficientvit.models.utils import build_kwargs_from_config
 
 __all__ = [
+    "SegHead",
     "EfficientViTSeg",
     "efficientvit_seg_b0",
     "efficientvit_seg_b1",
@@ -276,7 +277,22 @@ def efficientvit_seg_l1(dataset: str, **kwargs) -> EfficientViTSeg:
             expand_ratio=1,
             middle_op="fmbconv",
             final_expand=None,
-            n_classes=19,
+            n_classes=19, ######
+            act_func="gelu",
+            **build_kwargs_from_config(kwargs, SegHead),
+        )
+    elif dataset == "cityscapes_carla":
+        head = SegHead(
+            fid_list=["stage4", "stage3", "stage2"],
+            in_channel_list=[512, 256, 128],
+            stride_list=[32, 16, 8],
+            head_stride=8,
+            head_width=256,
+            head_depth=3,
+            expand_ratio=1,
+            middle_op="fmbconv",
+            final_expand=None,
+            n_classes=29, ######
             act_func="gelu",
             **build_kwargs_from_config(kwargs, SegHead),
         )

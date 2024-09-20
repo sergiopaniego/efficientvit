@@ -298,6 +298,7 @@ class SEGTrainer(Trainer): ####
 
     def train(self) -> None:
 
+        current_patience = 0
         for sub_epoch in range(self.start_epoch, self.run_config.n_epochs):
             epoch = sub_epoch // self.data_provider.sub_epochs_per_epoch
 
@@ -306,16 +307,31 @@ class SEGTrainer(Trainer): ####
             val_info_dict = self.validate(epoch=epoch, sub_epoch=sub_epoch)
 
             # val_iou = val_info_dict["val_iou"]
-            val_iou = val_info_dict["val_loss"]
-            is_best = val_iou > self.best_val
-            self.best_val = max(val_iou, self.best_val)
+            val_loss = val_info_dict["val_loss"]
+            is_best = val_loss < self.best_val_loss
+            self.best_val_loss = min(val_loss, self.best_val_loss)
 
-            print(f'Saving model... {self.starting_datetime}_checkpoint_{epoch}_{sub_epoch}.pt')
-            self.save_model(
-                only_state_dict=False,
-                epoch=sub_epoch,
-                model_name=f"{self.starting_datetime}_checkpoint_{epoch}_{sub_epoch}.pt",
-            )
+            if is_best:
+                current_patience = 0
+                #if val_loss == self.best_val:
+                print(f'Saving best model... Epoch: {epoch} - Sub epoch: {sub_epoch} - {self.starting_datetime}_best_checkpoint.pt')
+                self.save_model(
+                    only_state_dict=False,
+                    epoch=sub_epoch,
+                    model_name=f"{self.starting_datetime}_best_checkpoint.pt",
+                )
+            else:
+                current_patience += 1
+                if current_patience >= self.run_config.patience:
+                    print(f'Early Stopping with patience {self.run_config.patience} applied')
+                    break
+
+        print(f'Saving last model... {self.starting_datetime}_last_checkpoint.pt')
+        self.save_model(
+            only_state_dict=False,
+            epoch=sub_epoch,
+            model_name=f"{self.starting_datetime}_last_checkpoint.pt",
+        )
 
     def prep_for_training(self, run_config: SEGRunConfig, amp="fp32") -> None: ####
         self.run_config = run_config

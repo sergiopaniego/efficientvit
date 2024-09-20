@@ -239,6 +239,172 @@ class CityscapesDataset(Dataset):
             **feed_dict,
         }
 
+class CityscapesDatasetCarla(Dataset):
+    classes = (
+        "unlabeled",
+        "static",
+        "dynamic",
+        "ground",
+
+        "road",
+        "sidewalk",
+
+        "rail track",
+
+        "building",
+        "wall",
+        "fence",
+
+        "guard rail",
+        "bridge",
+
+        "pole",
+        "traffic light",
+        "traffic sign",
+        "vegetation",
+        "terrain",
+        "sky",
+        "person",
+        "rider",
+        "car",
+        "truck",
+        "bus",
+        "train",
+        "motorcycle",
+        "bicycle",
+        "other",
+        "water",
+        "road line"
+    )
+    class_colors = (
+        (0, 0, 0), # Unlabeled
+        (110, 190, 160), # Static
+        (170, 120, 50), # Dynamic
+        (81, 0, 81), # Ground
+
+        (128, 64, 128), # Roads
+        (244, 35, 232), # SideWalks
+
+        (230, 150, 140), # RailTrack
+
+        (70, 70, 70), # Building
+        (102, 102, 156), # Wall
+        (190, 153, 153), # Fence
+
+        (180, 165, 180), # GuardRail
+        (150, 100, 100), # Bridge
+
+        (153, 153, 153), # Pole
+        (250, 170, 30), # TrafficLight
+        (220, 220, 0), # TrafficSign
+        (107, 142, 35), # Vegetation
+        (152, 251, 152), # Terrain
+        (70, 130, 180), # Sky
+        (220, 20, 60), # Pedestrian
+        (255, 0, 0), # Rider
+        (0, 0, 142), # Car
+        (0, 0, 70), # Truck
+        (0, 60, 100), # Bus
+        (0, 80, 100), # Train
+        (0, 0, 230), # Motorcycle
+        (119, 11, 32), # Bicycle
+
+        (55, 90, 80), ###### Other
+        (45, 60, 150), ##### Water
+        (157, 234, 50), ##### RoadLine
+    )
+    label_map = np.array(
+        (
+            0, ## unlabeled 0
+            -1,
+            -1,
+            -1,
+            1, ## static 4
+            2, ## dynamic 5
+            3, ## ground 6
+            4,  # road 7
+            5,  # sidewalk 8
+            -1, 
+            6, ## rail track 9
+            7,  # building 11
+            8,  # wall 12
+            9,  # fence 13
+            10, ## guard rail 14
+            11, ## bridge 15
+            -1,
+            12,  # pole 17
+            -1,
+            13,  # traffic light 19
+            14,  # traffic sign 20
+            15,  # vegetation 21
+            16,  # terrain 22
+            17,  # sky 23
+            18,  # person 24
+            19,  # rider 25
+            20,  # car 26
+            21,  # truck 27
+            22,  # bus 28
+            -1,
+            -1,
+            23,  # train 31
+            24,  # motorcycle 32
+            25,  # bicycle 33
+
+            26,  ## other
+            27,  ## water
+            28,  ## road line
+        )
+    )
+
+    def __init__(self, data_dir: str, crop_size= None):
+        super().__init__()
+
+        # load samples
+        samples = []
+        for dirpath, _, fnames in os.walk(data_dir):
+            for fname in sorted(fnames):
+                suffix = pathlib.Path(fname).suffix
+                if suffix not in [".png"]:
+                    continue
+                image_path = os.path.join(dirpath, fname)
+                mask_path = image_path.replace("/leftImg8bit/", "/gtFine/").replace(
+                    "_leftImg8bit.", "_gtFine_labelIds."
+                )
+                #print('image_path',image_path)
+                #print('mask_path', mask_path)
+                if not mask_path.endswith(".png"):
+                    mask_path = ".".join([*mask_path.split(".")[:-1], "png"])
+                samples.append((image_path, mask_path))
+        self.samples = samples
+
+        # build transform
+        self.transform = transforms.Compose(
+            [
+                Resize(crop_size),
+                ToTensor(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+
+    def __len__(self) -> int:
+        return len(self.samples)
+
+    def __getitem__(self, index: int):
+        image_path, mask_path = self.samples[index]
+        image = np.array(Image.open(image_path).convert("RGB"))
+        mask = np.array(Image.open(mask_path))
+        #mask = self.label_map[mask]
+
+        feed_dict = {
+            "data": image,
+            "label": mask,
+        }
+        feed_dict = self.transform(feed_dict)
+        return {
+            "index": index,
+            "image_path": image_path,
+            "mask_path": mask_path,
+            **feed_dict,
+        }
 
 class ADE20KDataset(Dataset):
     classes = (
@@ -617,6 +783,7 @@ def get_canvas(
         mask = cv2.resize(mask, dsize=(image_shape[1], image_shape[0]), interpolation=cv2.INTER_NEAREST)
     seg_mask = np.zeros_like(image, dtype=np.uint8)
     for k, color in enumerate(colors):
+        print(k, color)
         seg_mask[mask == k, :] = color
     canvas = seg_mask #* opacity + image * (1 - opacity)
     canvas = np.asarray(canvas, dtype=np.uint8)

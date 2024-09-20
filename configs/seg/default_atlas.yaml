@@ -1,19 +1,20 @@
 data_provider:
   dataset: seg
+  dataset_type: cityscapes
   root: ../gsoc2023-Meiqi_Zhao/src/data/atlas_model_dataset/ # ../segmentation-carla-driving/
   sub_epochs_per_epoch: 40 # split one epoch into several sub epochs for validation and checkpointing convenience
   num_masks: 64 # number of masks per image during training
-  train_batch_size: 4 # batch size per gpu device
-  base_batch_size: 4
-  test_batch_size: 4
-  n_worker: 8 # 16
+  train_batch_size: 16 # batch size per gpu device
+  base_batch_size: 16
+  test_batch_size: 16
+  n_worker: 32 # 8
   image_size: 1024
   drop_last: true
 
 net_config:
   project_name: atlas
   name: l1
-  ckpt: assets/checkpoints/seg/cityscapes/l1.pt
+  #ckpt: assets/checkpoints/seg/cityscapes/l1.pthh
 
 run_config:
   n_epochs: 300 # number of sub epochs; number of SA-1B epoch = n_epochs / sub_epochs_per_epoch
@@ -37,3 +38,4 @@ run_config:
   reset_bn_size: null
   reset_bn_batch_size: null
   eval_image_size: null
+  patience: 30

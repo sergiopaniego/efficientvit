@@ -23,7 +23,7 @@ def main():
     args, opt = parser.parse_known_args()
     opt = parse_unknown_args(opt)
 
-    #setup.setup_dist_env()p
+    #setup.setup_dist_env()
 
     os.makedirs(args.path, exist_ok=True)
     dump_config(args.__dict__, os.path.join(args.path, "args.yaml"))
@@ -41,9 +41,8 @@ def main():
 
 
     run_config = setup.setup_run_config(config, SEGRunConfig) ###
-
     #model = create_seg_model(config["net_config"]["name"], False) ###
-    model = create_seg_model(config["net_config"]["name"], 'cityscapes')
+    model = create_seg_model(config["net_config"]["name"], config['data_provider']['dataset_type'])
 
     trainer = SEGTrainer( ###
         path=args.path,
@@ -54,7 +53,7 @@ def main():
 
     setup.init_model(
         trainer.network,
-        init_from=config["net_config"]["ckpt"],
+        #init_from=config["net_config"]["ckpt"],
         rand_init=args.rand_init,
         last_gamma=args.last_gamma,
     )

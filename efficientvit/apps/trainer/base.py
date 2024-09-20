@@ -30,6 +30,7 @@ class Trainer:
             os.makedirs(path, exist_ok=True)
 
         self.best_val = 0.0
+        self.best_val_loss = float('inf')
         self.start_epoch = 0
 
     @property
@@ -93,6 +94,7 @@ class Trainer:
                     "state_dict": self.network.state_dict(),
                     "epoch": epoch,
                     "best_val": self.best_val,
+                    "best_val_loss": self.best_val_loss,
                     "optimizer": self.optimizer.state_dict(),
                     "lr_scheduler": self.lr_scheduler.state_dict(),
                     "ema": self.ema.state_dict() if self.ema is not None else None,

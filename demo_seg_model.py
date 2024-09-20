@@ -10,13 +10,13 @@ from torchvision import transforms
 
 from efficientvit.models.utils import resize
 from efficientvit.seg_model_zoo import create_seg_model
-from eval_seg_model import ADE20KDataset, CityscapesDataset, Resize, ToTensor, get_canvas
+from eval_seg_model import ADE20KDataset, CityscapesDataset, CityscapesDatasetCarla, Resize, ToTensor, get_canvas
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--image_path", type=str, default="assets/fig/indoor.jpg")
-    parser.add_argument("--dataset", type=str, default="ade20k", choices=["cityscapes", "ade20k"])
+    parser.add_argument("--dataset", type=str, default="ade20k", choices=["cityscapes", "ade20k", "cityscapes_carla"])
     parser.add_argument("--gpu", type=str, default="0")
     parser.add_argument("--crop_size", type=int, default=512)
     parser.add_argument("--model", type=str, default="l2")
@@ -36,6 +36,14 @@ def main():
             ]
         )
         class_colors = CityscapesDataset.class_colors
+    elif args.dataset == "cityscapes_carla":
+        transform = transforms.Compose(
+            [
+                Resize((args.crop_size, args.crop_size * 2)),
+                ToTensor(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+            ]
+        )
+        class_colors = CityscapesDatasetCarla.class_colors
     elif args.dataset == "ade20k":
         h, w = image.shape[:2]
         if h < w:
@@ -76,6 +84,7 @@ def main():
             output = resize(output, size=image.shape[:2])
         print('output.shape', output.shape)    
         output = torch.argmax(output, dim=1).cpu().numpy()[0]
+        print(output)
         canvas = get_canvas(image, output, class_colors)
         canvas = Image.fromarray(canvas).save(args.output_path)
 
