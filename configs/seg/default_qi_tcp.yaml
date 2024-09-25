@@ -13,7 +13,7 @@ data_provider:
 
 net_config:
   project_name: qi_tcp
-  name: qi_tcp
+  name: l1
   #ckpt: assets/checkpoints/seg/cityscapes/l1.pt
 
 run_config:

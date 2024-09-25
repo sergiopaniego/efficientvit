@@ -35,10 +35,7 @@ class Resize(object):
             return feed_dict
 
         image, target = feed_dict["data"], feed_dict["label"]
-        height, width = self.crop_size
-
-        print(image.shape)
-        
+        height, width = self.crop_size        
 
         h, w, _ = image.shape
         if width != w or height != h:
@@ -102,8 +99,8 @@ class SegIOU:
         unions = outputs + targets - intersections
 
         return {
-            "i": intersections,
-            "u": unions,
+            "intersection": intersections,
+            "union": unions,
         }
 
 
@@ -359,23 +356,21 @@ class CityscapesDatasetCarla(Dataset):
     def __init__(self, data_dir: str, crop_size= None):
         super().__init__()
 
-        # load samples
-        samples = []
-        for dirpath, _, fnames in os.walk(data_dir):
-            for fname in sorted(fnames):
-                suffix = pathlib.Path(fname).suffix
-                if suffix not in [".png"]:
-                    continue
-                image_path = os.path.join(dirpath, fname)
-                mask_path = image_path.replace("/leftImg8bit/", "/gtFine/").replace(
-                    "_leftImg8bit.", "_gtFine_labelIds."
-                )
-                #print('image_path',image_path)
-                #print('mask_path', mask_path)
-                if not mask_path.endswith(".png"):
-                    mask_path = ".".join([*mask_path.split(".")[:-1], "png"])
-                samples.append((image_path, mask_path))
-        self.samples = samples
+        import glob
+        import h5py
+        self.file_paths = glob.glob(os.path.join(data_dir, "*.hdf5"))
+        self.file_paths.sort()  # Ensuring data is processed in order
+        #self.file_paths = self.file_paths[:1] # DELETE! We take only 1 set of examples for debugging
+
+        self.samples = []
+        self.lengths = []
+        self.total_length = 0
+        for file_path in self.file_paths:
+            file = h5py.File(file_path, 'r')
+            self.samples.append(file)
+            length = file['frame'].shape[0]
+            self.lengths.append(length)
+            self.total_length += length
 
         # build transform
         self.transform = transforms.Compose(
@@ -386,25 +381,72 @@ class CityscapesDatasetCarla(Dataset):
         )
 
     def __len__(self) -> int:
-        return len(self.samples)
+        return self.total_length
 
-    def __getitem__(self, index: int):
-        image_path, mask_path = self.samples[index]
-        image = np.array(Image.open(image_path).convert("RGB"))
-        mask = np.array(Image.open(mask_path))
-        #mask = self.label_map[mask]
+    def __getitem__(self, idx: int):
+        if torch.is_tensor(idx):
+            idx = idx.tolist()
 
-        feed_dict = {
-            "data": image,
-            "label": mask,
+        file_idx = 0
+        while idx >= self.lengths[file_idx]:
+            idx -= self.lengths[file_idx]
+            file_idx += 1
+
+        file = self.samples[file_idx]
+
+        sample = {
+            'data': torch.tensor(file['rgb'][idx], dtype=torch.float32).numpy(),
+            'label': self.convert_rgb_to_class(file['segmentation'][idx]).numpy(),
+        }        
+        if self.transform:
+            sample = self.transform(sample)
+       
+        sample['raw_image'] = file['rgb'][idx]
+        return sample
+
+
+    def convert_rgb_to_class(self, mask):
+        """ Convert an RGB mask to a single channel class mask """
+        mask = torch.tensor(mask, dtype=torch.float32)
+        mask_class = torch.zeros(mask.shape[:2], dtype=torch.long)
+
+        rgb_to_class = {
+            (0, 0, 0): 0, # "unlabeled"
+            (110, 190, 160): 1, # "static"
+            (170, 120, 50): 2, # "dynamic"
+            (81, 0, 81): 3, # "ground"
+            (128, 64, 128): 4, # "road"
+            (244, 35, 232): 5, # "sidewalk"
+            (230, 150, 140): 6, # "rail track"
+            (70, 70, 70): 7, # "building"
+            (102, 102, 156): 8, # "wall"
+            (190, 153, 153): 9, # "fence"
+            (180, 165, 180): 10, # "guard rail"
+            (150, 100, 100): 11, # "bridge"
+            (153, 153, 153): 12, # "pole"
+            (250, 170, 30): 13, # "traffic light"
+            (220, 220, 0): 14, # "traffic sign"
+            (107, 142, 35): 15, # "vegetation"
+            (152, 251, 152): 16, # "terrain"
+            (70, 130, 180): 17, # "sky"
+            (220, 20, 60): 18, # "person"
+            (255, 0, 0): 19, # "rider"
+            (0, 0, 142): 20, # "car"
+            (0, 0, 70): 21, # "truck"
+            (0, 60, 100): 22, # "bus"
+            (0, 80, 100): 23, # "train"
+            (0, 0, 230): 24, # "motorcycle"
+            (119, 11, 32): 25, # "bicycle"
+            (55, 90, 80): 26, # "other"
+            (45, 60, 150): 27, # "water"
+            (157, 234, 50): 28, # "road line"
         }
-        feed_dict = self.transform(feed_dict)
-        return {
-            "index": index,
-            "image_path": image_path,
-            "mask_path": mask_path,
-            **feed_dict,
-        }
+
+        for rgb, class_value in rgb_to_class.items():
+            mask_class[(mask == torch.tensor(rgb, dtype=torch.float32)).all(dim=-1)] = class_value
+
+        return mask_class
+
 
 class ADE20KDataset(Dataset):
     classes = (
@@ -783,7 +825,6 @@ def get_canvas(
         mask = cv2.resize(mask, dsize=(image_shape[1], image_shape[0]), interpolation=cv2.INTER_NEAREST)
     seg_mask = np.zeros_like(image, dtype=np.uint8)
     for k, color in enumerate(colors):
-        print(k, color)
         seg_mask[mask == k, :] = color
     canvas = seg_mask #* opacity + image * (1 - opacity)
     canvas = np.asarray(canvas, dtype=np.uint8)
@@ -793,7 +834,7 @@ def get_canvas(
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--path", type=str, default="/dataset/cityscapes/leftImg8bit/val")
-    parser.add_argument("--dataset", type=str, default="cityscapes", choices=["cityscapes", "ade20k"])
+    parser.add_argument("--dataset", type=str, default="cityscapes", choices=["cityscapes", "ade20k", "cityscapes_carla"])
     parser.add_argument("--gpu", type=str, default="0")
     parser.add_argument("--batch_size", help="batch size per gpu", type=int, default=1)
     parser.add_argument("-j", "--workers", help="number of workers", type=int, default=4)
@@ -815,6 +856,8 @@ def main():
     if args.dataset == "cityscapes":
         print('CROP SIZE', (args.crop_size, args.crop_size * 2))
         dataset = CityscapesDataset(args.path, (args.crop_size, args.crop_size * 2))
+    elif args.dataset == "cityscapes_carla":
+        dataset = CityscapesDatasetCarla(args.path, (args.crop_size, args.crop_size * 2))
     elif args.dataset == "ade20k":
         dataset = ADE20KDataset(args.path, crop_size=args.crop_size)
     else:
@@ -834,59 +877,73 @@ def main():
 
     if args.save_path is not None:
         os.makedirs(args.save_path, exist_ok=True)
-    interaction = AverageMeter(is_distributed=False)
+    intersection = AverageMeter(is_distributed=False)
     union = AverageMeter(is_distributed=False)
     iou = SegIOU(len(dataset.classes))
-    print(args.path)
+    
+    mIoU_mean_aggregated = []
+    mIoU_mean_aggregated_categories = {}
+    images_counter = 0
     with torch.inference_mode():
         with tqdm(total=len(data_loader), desc=f"Eval {args.model} on {args.dataset}") as t:
             for feed_dict in data_loader:
                 images, mask = feed_dict["data"].cuda(), feed_dict["label"].cuda()
-                print('data input shape', images.shape)
                 # compute output
                 output = model(images)
-                print('output', output)
-                print('output.shape', output.shape)
-                print('mask.shape', mask.shape)
+
                 # resize the output to match the shape of the mask
                 if output.shape[-2:] != mask.shape[-2:]:
-                    print('RESIZE!', mask.shape[-2:])
-                    print('POSSIBLE RESIZE!', mask.shape[1:3])
-                    #output = resize(output, size=mask.shape[-2:])
                     output = resize(output, size=mask.shape[1:3])
 
-                print('output.shape', output.shape)
-                print('mask.shape', mask.shape)
                 output = torch.argmax(output, dim=1)
-                '''
+                
                 stats = iou(output, mask)
-                interaction.update(stats["i"])
-                union.update(stats["u"])
+
+
+                intersection.update(stats["intersection"])
+                union.update(stats["union"])
+                sum_value = torch.nan_to_num(intersection.sum.cpu())
+                union_value = torch.nan_to_num(union.sum.cpu())
+
+                mIoU = sum_value / union_value
+                mIoU = torch.nan_to_num(mIoU)
+                mIoU_mean = mIoU.mean().item() * 100
+                mIoU_mean_aggregated.append(mIoU_mean)
+
+                mIoU_dict = {class_name: miou.item()* 100 for class_name, miou in zip(dataset.classes, mIoU)}
+                for class_name, miou in mIoU_dict.items():
+                    if class_name not in mIoU_mean_aggregated_categories:
+                        mIoU_mean_aggregated_categories[class_name] = []
+                    mIoU_mean_aggregated_categories[class_name].append(miou)   
 
                 t.set_postfix(
                     {
-                        "mIOU": (interaction.sum / union.sum).cpu().mean().item() * 100,
+                        "mIoU": f"{mIoU_mean:.3f}",
                         "image_size": list(images.shape[-2:]),
+                        "mIoU_dict": mIoU_dict
                     }
                 )
                 t.update()
-                '''
 
                 if args.save_path is not None:
                     with open(os.path.join(args.save_path, "summary.txt"), "a") as fout:
-                        for i, (idx, image_path) in enumerate(zip(feed_dict["index"], feed_dict["image_path"])):
+                        for i, (normalized_image, raw_image) in enumerate(zip(feed_dict["data"], feed_dict["raw_image"])):
+                            print(f"{images_counter}.png")
                             pred = output[i].cpu().numpy()
-                            print(image_path)
-                            raw_image = np.array(Image.open(image_path).convert("RGB"))
-                            canvas = get_canvas(raw_image, pred, dataset.class_colors)
-                            #canvas = Image.fromarray(canvas)
-                            canvas = Image.fromarray(canvas).save(os.path.join(args.save_path, f"{idx}.png"))
-                            #canvas.save(os.path.join(args.save_path, f"{idx}.png"))
-                            print(idx)
-                            print(image_path)
-                            #fout.write(f"{idx}:\t{image_path}\n")
+                            normalized_image = normalized_image.permute(1, 2, 0).cpu().numpy()
+                            canvas = get_canvas(normalized_image, pred, dataset.class_colors)
+                            raw_image = raw_image.cpu().numpy()
+                            Image.fromarray(raw_image).save(os.path.join(args.save_path, f"{images_counter}_raw.png"))
+                            Image.fromarray(canvas).save(os.path.join(args.save_path, f"{images_counter}_pred.png"))
+                            images_counter += 1
+                            
 
-    print(f"mIoU = {(interaction.sum / union.sum).cpu().mean().item() * 100:.3f}")
+    mIoU_mean_aggregated = sum(mIoU_mean_aggregated) / len(mIoU_mean_aggregated)
+    mIoU_mean_aggregated_categories = {class_name: sum(miou_values) / len(miou_values) for class_name, miou_values in mIoU_mean_aggregated_categories.items()}
+
+    print('mIoU_mean_aggregated', mIoU_mean_aggregated)
+    print('mIoU_mean_aggregated_categories',mIoU_mean_aggregated_categories)
+
 
 
 if __name__ == "__main__":

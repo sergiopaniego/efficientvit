@@ -29,7 +29,7 @@ REGISTERED_SEG_MODEL = {
         "l1": "assets/checkpoints/seg/cityscapes/l1.pt",
         "l2": "assets/checkpoints/seg/cityscapes/l2.pt",
         ################################################
-        "qi_tcp": "example/checkpoint/2024-09-16_11-58-22_best_checkpoint.pt"
+        "qi_tcp": "example/checkpoint/2024-09-20_13-35-11_best_checkpoint.pt"
     },
     "cityscapes": {
         "b0": "assets/checkpoints/seg/cityscapes/b0.pt",
@@ -73,15 +73,21 @@ def create_seg_model(
 
         set_norm_eps(model, 1e-7)
 
-    print(REGISTERED_SEG_MODEL)
-    print('*********')
-    print(REGISTERED_SEG_MODEL[dataset])
-    print('*********')
-    print(REGISTERED_SEG_MODEL[dataset].get(name, None))
-    print('*********')
-    print(dataset)
-    print('*********')
-    print(name)
+    #print(REGISTERED_SEG_MODEL)
+    #print('*********')
+    #print(REGISTERED_SEG_MODEL[dataset])
+    #print('*********')
+    #print('*********')
+    #print(REGISTERED_SEG_MODEL[dataset].get(name, None))
+    #print(dataset)
+    #print('*********')
+    #print(name)
+    #print('------------------')
+    #print(model.backbone)
+    #print('------------------')
+    #print(model.head) 
+    #print('------------------')
+    #print(weight_url)
     
 
     if pretrained:
@@ -92,10 +98,10 @@ def create_seg_model(
             weight = load_state_dict_from_file(weight_url)
             model.load_state_dict(weight)
 
-    print('------------------')
-    print(model.backbone)
-    print('------------------')
-    print(model.head) 
+    #print('------------------')
+    #print(model.backbone)
+    #print('------------------')
+    #print(model.head) 
     '''
     head = SegHead(
             fid_list=["stage4", "stage3", "stage2"],
