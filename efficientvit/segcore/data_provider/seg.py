@@ -361,14 +361,16 @@ class SEGDataProvider(DataProvider):
         if dataset is None:
             return None
         if train:
-            #sampler = SEGDistributedSampler(dataset, sub_epochs_per_epoch=self.sub_epochs_per_epoch) #################################
-            #dataloader = DataLoader(dataset, batch_size, sampler=sampler, drop_last=True, num_workers=n_worker)
-            dataloader = DataLoader(dataset, batch_size, drop_last=True, num_workers=n_worker)
+            #sampler = SEGDistributedSampler(dataset, sub_epochs_per_epoch=self.sub_epochs_per_epoch, num_replicas=1) #################################
+            sampler = SEGDistributedSampler(dataset, num_replicas=1, rank=0,sub_epochs_per_epoch=self.sub_epochs_per_epoch)
+
+            dataloader = DataLoader(dataset, batch_size, sampler=sampler, drop_last=True, num_workers=n_worker)
+            #dataloader = DataLoader(dataset, batch_size, drop_last=True, num_workers=n_worker, shuffle=True)
             return dataloader
         else:
-            #sampler = DistributedSampler(dataset, shuffle=False)
-            #dataloader = DataLoader(dataset, batch_size, sampler=sampler, drop_last=False, num_workers=n_worker)
-            dataloader = DataLoader(dataset, batch_size, drop_last=False, num_workers=n_worker)
+            sampler = DistributedSampler(dataset, num_replicas=1, rank=0, shuffle=False)
+            dataloader = DataLoader(dataset, batch_size, sampler=sampler, drop_last=False, num_workers=n_worker)
+            #dataloader = DataLoader(dataset, batch_size, drop_last=False, num_workers=n_worker, shuffle=True)
             return dataloader
 
     def set_epoch_and_sub_epoch(self, epoch: int, sub_epoch: int) -> None:

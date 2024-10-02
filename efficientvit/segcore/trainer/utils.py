@@ -93,16 +93,18 @@ def get_uncertain_point_coords_with_randomness(
     return point_coords
 
 
-def dice_loss(output, target, epsilon=1e-6):
+def dice_loss(output: torch.Tensor, target: torch.Tensor, num_classes: int, epsilon: float = 1e-6):
     """ Calculate dice loss for semantic segmentation """
     output = torch.softmax(output, dim=1)  # Convert predictions to probabilities
-    target = F.one_hot(target, num_classes=output.shape[1]).permute(0, 3, 1, 2).float()  # Convert to one-hot
+    target = F.one_hot(target, num_classes=num_classes).permute(0, 3, 1, 2).float()  # Convert to one-hot
 
     intersection = (output * target).sum(dim=(2, 3))
     union = output.sum(dim=(2, 3)) + target.sum(dim=(2, 3))
 
     dice = (2. * intersection + epsilon) / (union + epsilon)
     return 1 - dice.mean()
+
+dice_loss_jit = torch.jit.script(dice_loss)  # type: torch.jit.ScriptModule
 
 '''
 def dice_loss(inputs: torch.Tensor, targets: torch.Tensor, num_masks: float, mode: str):
@@ -169,7 +171,7 @@ def calculate_uncertainty(logits):
     gt_class_logits = logits.clone()
     return -(torch.abs(gt_class_logits))
 
-
+'''
 def loss_masks(src_masks, target_masks, num_masks, oversample_ratio=3.0, mode="mean"):
     """
     Compute the losses related to the masks: the focal loss and the dice loss.
@@ -208,6 +210,35 @@ def loss_masks(src_masks, target_masks, num_masks, oversample_ratio=3.0, mode="m
     del src_masks
     del target_masks
     return loss_mask, loss_dice
+'''
+
+def loss_masks(src_masks, target_masks, num_classes, mode="mean"):
+    """
+    Compute the losses related to the masks: the focal loss and the dice loss.
+    Args:
+        src_masks: Predicted masks of shape [batch_size, num_classes, height, width].
+        target_masks: Ground truth masks of shape [batch_size, height, width].
+        num_classes: Total number of classes.
+        mode: How to average the loss ('mean' or 'sum').
+    Returns:
+        loss_mask: Focal loss.
+        loss_dice: Dice loss.
+    """
+
+    # Reshape target_masks to be compatible with src_masks
+    #target_masks = target_masks.unsqueeze(1)  # [batch_size, 1, height, width]
+    
+    # Compute Cross-Entropy Loss
+    #loss_mask = nn.CrossEntropyLoss(reduction=mode)(src_masks, target_masks)
+    loss_ce = F.cross_entropy(src_masks, target_masks, reduction='mean')
+
+    # Compute Dice Loss
+    # First, ensure src_masks are probabilities (applying sigmoid if needed)
+    point_logits = torch.softmax(src_masks, dim=1)  # [batch_size, num_classes, height, width]
+    
+    loss_dice = dice_loss_jit(point_logits, target_masks, num_classes)
+
+    return loss_ce, loss_dice
 
 
 def mask_iou(pred_label, label):

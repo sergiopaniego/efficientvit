@@ -19,7 +19,7 @@ from efficientvit.segcore.trainer.utils import ( ####
     compute_boundary_iou,
     compute_iou,
     dice_loss,
-    #loss_masks,
+    loss_masks,
     mask_iou_batch,
     masks_sample_points,
 )
@@ -63,8 +63,8 @@ class SEGTrainer(Trainer): ####
         iou = SegIOU(29)
         intersection = AverageMeter(is_distributed=False)
         union = AverageMeter(is_distributed=False)
-        mIoU_mean_aggregated = []
-        mIoU_mean_aggregated_categories = {}
+        #mIoU_mean_aggregated = []
+        #mIoU_mean_aggregated_categories = {}
         images_counter = 0
 
         with torch.no_grad():
@@ -85,18 +85,20 @@ class SEGTrainer(Trainer): ####
                         output = F.interpolate(output, size=(image.shape[2], image.shape[3]), mode="bilinear", align_corners=False)
 
                     # Calculate semantic segmentation loss
-                    loss_ce = F.cross_entropy(output, masks, reduction='mean')
-                    loss_dice = dice_loss(output, masks)
+                    #loss_ce = F.cross_entropy(output, masks, reduction='mean')
+                    #loss_dice = dice_loss(output, masks)
 
                     # Combination of losses
-                    loss = loss_ce + loss_dice
+                    #loss = loss_ce + loss_dice
+                    loss_ce, loss_dice = loss_masks(output, masks, output.shape[1], mode="none")
+                    loss = loss_ce * 20 + loss_dice
+
                     val_loss.update(loss, image.shape[0])
                     val_loss_ce.update(loss_ce, image.shape[0])
                     val_loss_dice.update(loss_dice, image.shape[0])
 
-
-                    target = F.one_hot(masks, num_classes=output.shape[1]).permute(0, 3, 1, 2).float() 
-                    stats = iou(output, target)
+                    output = torch.argmax(output, dim=1)
+                    stats = iou(output, masks)
 
                     intersection.update(stats["intersection"])
                     union.update(stats["union"])
@@ -106,7 +108,7 @@ class SEGTrainer(Trainer): ####
                     mIoU = sum_value / union_value
                     mIoU = torch.nan_to_num(mIoU)
                     mIoU_mean = mIoU.mean().item() * 100
-                    mIoU_dict = {f'mIoU_{class_name}': miou.item()* 100 for class_name, miou in zip(CityscapesDatasetCarla.classes, mIoU)}
+                    mIoU_dict = {f'val_mIoU_{class_name}': miou.item()* 100 for class_name, miou in zip(CityscapesDatasetCarla.classes, mIoU)}
 
                     wandb_log = {
                         "val_loss": val_loss.avg, 
@@ -114,7 +116,7 @@ class SEGTrainer(Trainer): ####
                         "val_loss_dice": val_loss_dice.avg,
                     }
                     wandb_log.update(mIoU_dict)
-                    wandb_log['mIoU'] = mIoU_mean
+                    wandb_log['val_mIoU'] = mIoU_mean
                     self.wandb_log.log(
                         wandb_log
                     )
@@ -178,12 +180,21 @@ class SEGTrainer(Trainer): ####
             if output.shape[2:] != image.shape[2:]:
                 output = F.interpolate(output, size=(image.shape[2], image.shape[3]), mode="bilinear", align_corners=False)
 
+            #print('output.shape', output.shape) # ([16, 29, 1024, 1024])
+            #print('masks.shape', masks.shape) # ([16, 1024, 1024])
+            #print(len(output))
+            #loss_ce = F.cross_entropy(output, masks, reduction='mean')
+
+            #output = F.interpolate(output, size=(image.shape[2], image.shape[3]), mode="bilinear")
+            loss_ce, loss_dice = loss_masks(output, masks, output.shape[1], mode="none")
+            loss = loss_ce * 20 + loss_dice
+
             # Calculate semantic segmentation loss
-            loss_ce = F.cross_entropy(output, masks, reduction='mean')
-            loss_dice = dice_loss(output, masks)
+            #loss_ce = F.cross_entropy(output, masks, reduction='mean')
+            #loss_dice = dice_loss(output, masks)
 
             # Combination of losses
-            loss = loss_ce + loss_dice
+            #loss = loss_ce + loss_dice
 
         self.scaler.scale(loss).backward()
 
@@ -200,8 +211,8 @@ class SEGTrainer(Trainer): ####
         iou = SegIOU(29)
         intersection = AverageMeter(is_distributed=False)
         union = AverageMeter(is_distributed=False)
-        mIoU_mean_aggregated = []
-        mIoU_mean_aggregated_categories = {}
+        #mIoU_mean_aggregated = []
+        #mIoU_mean_aggregated_categories = {}
         images_counter = 0
 
         with tqdm(
@@ -231,19 +242,8 @@ class SEGTrainer(Trainer): ####
                 train_loss_ce.update(loss_ce, data["image"].shape[0])
                 train_loss_dice.update(loss_dice, data["image"].shape[0])
 
-                '''
-                TODO review if it works using compute_iou()
-                '''
-                #print(type(feed_dict["masks"]))
-                #print(feed_dict["masks"].shape)
-                #print(type(output_dict["output"]))
-                #print(output_dict["output"].shape)
-                #from torch.nn import functional as F
-
-                target = F.one_hot(feed_dict["masks"], num_classes=output_dict['output'].shape[1]).permute(0, 3, 1, 2).float()  # Convert to one-hot
-                #print(target.shape)
-                #print(feed_dict)
-                stats = iou(output_dict['output'], target)
+                output = torch.argmax(output_dict['output'], dim=1)
+                stats = iou(output, feed_dict["masks"])
 
                 intersection.update(stats["intersection"])
                 union.update(stats["union"])
@@ -254,6 +254,7 @@ class SEGTrainer(Trainer): ####
                 mIoU = torch.nan_to_num(mIoU)
                 mIoU_mean = mIoU.mean().item() * 100
                 mIoU_dict = {f'mIoU_{class_name}': miou.item()* 100 for class_name, miou in zip(CityscapesDatasetCarla.classes, mIoU)}
+
 
                 wandb_log = {
                         "train_loss": train_loss.avg,
