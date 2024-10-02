@@ -83,30 +83,25 @@ class SEGDistributedSampler(DistributedSampler):
         self.sub_epoch = sub_epoch
         self.set_sub_num_samples()
 
-'''
+
 class RandomHFlip(object):
     def __init__(self, prob=0.5):
         self.prob = prob
 
     def __call__(self, sample):
-        image, masks, points, bboxs, shape = (
+        image, masks, shape = (
             sample["image"],
             sample["masks"],
-            sample["points"],
-            sample["bboxs"],
             sample["shape"],
         )
 
         if random.random() >= self.prob:
             image = torch.flip(image, dims=[2])
-            masks = torch.flip(masks, dims=[2])
-            points = deepcopy(points).to(torch.float)
-            bboxs = deepcopy(bboxs).to(torch.float)
-            points[:, 0] = shape[-1] - points[:, 0]
-            bboxs[:, 0] = shape[-1] - bboxs[:, 2] - bboxs[:, 0]
+            masks = torch.flip(masks, dims=[1])
+            #masks = torch.flip(masks, dims=[2])
 
-        return {"image": image, "masks": masks, "points": points, "bboxs": bboxs, "shape": shape}
-'''
+        return {"image": image, "masks": masks, "shape": shape}
+
 
 class ResizeLongestSide(object):
     """

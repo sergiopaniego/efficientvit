@@ -896,6 +896,9 @@ def main():
                     output = resize(output, size=mask.shape[1:3])
 
                 output = torch.argmax(output, dim=1)
+
+                #print('output', output.shape)
+                #print('mask', mask.shape)
                 
                 stats = iou(output, mask)
 

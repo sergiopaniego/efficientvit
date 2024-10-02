@@ -15,7 +15,7 @@ from torch.utils.data.distributed import DistributedSampler
 from efficientvit.apps.data_provider import DataProvider
 from efficientvit.segcore.data_provider.utils import (################3
     Normalize_and_Pad,
-    #RandomHFlip,
+    RandomHFlip,
     ResizeLongestSide,
     SEGDistributedSampler, ############
 )
@@ -324,7 +324,7 @@ class SEGDataProvider(DataProvider):
 
     def build_train_transform(self):
         train_transforms = [
-            #RandomHFlip(),
+            RandomHFlip(),
             ResizeLongestSide(target_length=self.image_size[0]),
             Normalize_and_Pad(target_length=self.image_size[0]),
         ]

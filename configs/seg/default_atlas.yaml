@@ -1,6 +1,6 @@
 data_provider:
   dataset: seg
-  dataset_type: cityscapes
+  dataset_type: cityscapes_carla
   root: ../gsoc2023-Meiqi_Zhao/src/data/atlas_model_dataset/ # ../segmentation-carla-driving/
   sub_epochs_per_epoch: 40 # split one epoch into several sub epochs for validation and checkpointing convenience
   num_masks: 64 # number of masks per image during training
