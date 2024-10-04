@@ -7,6 +7,8 @@ import torch.nn.functional as F
 import torchvision.transforms as transforms
 from torch.utils.data import Dataset
 from torch.utils.data.distributed import DistributedSampler
+from torchvision.transforms.functional import adjust_brightness, adjust_contrast
+
 
 
 class SEGDistributedSampler(DistributedSampler):
@@ -100,6 +102,29 @@ class RandomHFlip(object):
             masks = torch.flip(masks, dims=[1])
             #masks = torch.flip(masks, dims=[2])
 
+        return {"image": image, "masks": masks, "shape": shape}
+
+
+class RandomColorJitter(object):
+    def __init__(self, brightness=0.3, contrast=0.3):
+        self.brightness = brightness
+        self.contrast = contrast
+
+    def __call__(self, sample):
+        image, masks, shape = sample["image"], sample["masks"], sample["shape"]
+        image = adjust_brightness(image, brightness_factor=random.uniform(1 - self.brightness, 1 + self.brightness))
+        image = adjust_contrast(image, contrast_factor=random.uniform(1 - self.contrast, 1 + self.contrast))
+        return {"image": image, "masks": masks, "shape": shape}
+
+
+class GaussianBlur(object):
+    def __init__(self, sigma=(0.1, 2.0)):
+        self.sigma = sigma
+
+    def __call__(self, sample):
+        image, masks, shape = sample["image"], sample["masks"], sample["shape"]
+        if random.random() > 0.5:
+            image = transforms.GaussianBlur(kernel_size=(5, 9), sigma=random.uniform(*self.sigma))(image)
         return {"image": image, "masks": masks, "shape": shape}
 
 

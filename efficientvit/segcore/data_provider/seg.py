@@ -17,6 +17,8 @@ from efficientvit.segcore.data_provider.utils import (################3
     Normalize_and_Pad,
     RandomHFlip,
     ResizeLongestSide,
+    RandomColorJitter,
+    GaussianBlur,
     SEGDistributedSampler, ############
 )
 
@@ -325,6 +327,8 @@ class SEGDataProvider(DataProvider):
     def build_train_transform(self):
         train_transforms = [
             RandomHFlip(),
+            RandomColorJitter(brightness=0.3, contrast=0.3),
+            GaussianBlur(sigma=(0.1, 2.0)),
             ResizeLongestSide(target_length=self.image_size[0]),
             Normalize_and_Pad(target_length=self.image_size[0]),
         ]
