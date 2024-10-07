@@ -168,7 +168,7 @@ class CARLACityScapesDataset(Dataset):
 
         if self.transform:
             sample = self.transform(sample)
-       
+
         return sample
 
     def convert_rgb_to_class(self, mask):
@@ -309,7 +309,6 @@ class SEGDataProvider(DataProvider):
         drop_last: bool = False,
     ):
         self.root = root
-        #self.num_masks = num_masks
         self.sub_epochs_per_epoch = sub_epochs_per_epoch
 
         super().__init__(
@@ -326,9 +325,9 @@ class SEGDataProvider(DataProvider):
 
     def build_train_transform(self):
         train_transforms = [
-            RandomHFlip(),
             RandomColorJitter(brightness=0.3, contrast=0.3),
             GaussianBlur(sigma=(0.1, 2.0)),
+            RandomHFlip(),
             ResizeLongestSide(target_length=self.image_size[0]),
             Normalize_and_Pad(target_length=self.image_size[0]),
         ]

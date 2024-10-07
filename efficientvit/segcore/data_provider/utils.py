@@ -8,6 +8,8 @@ import torchvision.transforms as transforms
 from torch.utils.data import Dataset
 from torch.utils.data.distributed import DistributedSampler
 from torchvision.transforms.functional import adjust_brightness, adjust_contrast
+import albumentations as A
+import numpy as np
 
 
 
@@ -91,30 +93,40 @@ class RandomHFlip(object):
         self.prob = prob
 
     def __call__(self, sample):
-        image, masks, shape = (
+        image, masks = (
             sample["image"],
-            sample["masks"],
-            sample["shape"],
+            sample["masks"]
         )
 
         if random.random() >= self.prob:
             image = torch.flip(image, dims=[2])
             masks = torch.flip(masks, dims=[1])
-            #masks = torch.flip(masks, dims=[2])
 
-        return {"image": image, "masks": masks, "shape": shape}
+        return {"image": image, "masks": masks}
 
 
 class RandomColorJitter(object):
     def __init__(self, brightness=0.3, contrast=0.3):
-        self.brightness = brightness
-        self.contrast = contrast
+        self.transform = A.Compose([
+            A.ColorJitter(brightness=brightness, contrast=contrast, p=1.0)
+        ])
 
     def __call__(self, sample):
-        image, masks, shape = sample["image"], sample["masks"], sample["shape"]
-        image = adjust_brightness(image, brightness_factor=random.uniform(1 - self.brightness, 1 + self.brightness))
-        image = adjust_contrast(image, contrast_factor=random.uniform(1 - self.contrast, 1 + self.contrast))
-        return {"image": image, "masks": masks, "shape": shape}
+        image, masks = sample["image"], sample["masks"]
+
+        if isinstance(image, torch.Tensor):
+            image = image.permute(1, 2, 0).cpu().numpy()  # [C, H, W] -> [H, W, C]
+
+        image = image.astype(np.uint8)
+
+        augmented = self.transform(image=image)
+        image = augmented["image"]
+
+        image = image.astype(np.float32)
+        image = torch.from_numpy(image).permute(2, 0, 1)  # [H, W, C] -> [C, H, W]
+        
+
+        return {"image": image, "masks": masks}
 
 
 class GaussianBlur(object):
@@ -122,10 +134,10 @@ class GaussianBlur(object):
         self.sigma = sigma
 
     def __call__(self, sample):
-        image, masks, shape = sample["image"], sample["masks"], sample["shape"]
-        if random.random() > 0.5:
-            image = transforms.GaussianBlur(kernel_size=(5, 9), sigma=random.uniform(*self.sigma))(image)
-        return {"image": image, "masks": masks, "shape": shape}
+        image, masks = sample["image"], sample["masks"]
+        #if random.random() > 0.5:
+        image = transforms.GaussianBlur(kernel_size=(5, 9), sigma=random.uniform(*self.sigma))(image)
+        return {"image": image, "masks": masks}
 
 
 class ResizeLongestSide(object):
@@ -158,7 +170,6 @@ class ResizeLongestSide(object):
 
         sample['image'] = self.apply_image(image, original_size)        
         sample['masks'] = self.apply_mask(masks, original_size)
-        sample['shape'] = torch.tensor(sample['image'].shape[-2:])
 
         return sample
 
@@ -169,10 +180,9 @@ class Normalize_and_Pad(object):
         self.transform = transforms.Normalize(mean=[123.675, 116.28, 103.53], std=[58.395, 57.12, 57.375])
 
     def __call__(self, sample):
-        image, masks, shape = (
+        image, masks = (
             sample["image"],
-            sample["masks"],
-            sample["shape"],
+            sample["masks"]
         )
 
         h, w = image.shape[-2:]
@@ -186,5 +196,5 @@ class Normalize_and_Pad(object):
         masks = F.pad(masks.unsqueeze(0).float(), (0, padw, 0, padh), value=0).squeeze(0).long()
 
 
-        return {"image": image, "masks": masks, "shape": shape}
+        return {"image": image, "masks": masks}
         #return {"image": image, "masks": masks}
