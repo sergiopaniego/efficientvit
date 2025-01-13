@@ -126,9 +126,8 @@ class SEGTrainer(Trainer): ####
                             "loss": val_loss.avg,
                             "loss_ce": val_loss_ce.avg,
                             "loss_dice": val_loss_dice.avg,
-                            #"iou": val_iou.avg,
-                            #"boundary_iou": val_iou_boundary.avg,
-                            #"bs": image.shape[0] * get_dist_size(),
+                            "mIoU": f"{mIoU_mean:.3f}",
+                            "mIoU_dict": mIoU_dict,
                             "bs": image.shape[0],
                         }
                     )
@@ -284,7 +283,8 @@ class SEGTrainer(Trainer): ####
                             "%.1E",
                         ),
                         "progress": self.run_config.progress,
-                        "mIoU": mIoU_mean
+                        "mIoU": f"{mIoU_mean:.3f}",
+                        "mIoU_dict": mIoU_dict,
                     }
                 )
                 t.update()

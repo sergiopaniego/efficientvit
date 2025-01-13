@@ -18,7 +18,7 @@ def main():
     parser.add_argument("--image_path", type=str, default="assets/fig/indoor.jpg")
     parser.add_argument("--dataset", type=str, default="ade20k", choices=["cityscapes", "ade20k", "cityscapes_carla"])
     parser.add_argument("--gpu", type=str, default="0")
-    parser.add_argument("--crop_size", type=int, default=512)
+    parser.add_argument("--crop_size", type=int, default=1024)
     parser.add_argument("--model", type=str, default="l2")
     parser.add_argument("--weight_url", type=str, default=None)
     parser.add_argument("--output_path", type=str, default="assets/demo/efficientvit_seg_demo.png")
@@ -39,7 +39,7 @@ def main():
     elif args.dataset == "cityscapes_carla":
         transform = transforms.Compose(
             [
-                Resize((args.crop_size, args.crop_size * 2)),
+                Resize((args.crop_size, args.crop_size)),
                 ToTensor(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
             ]
         )
@@ -81,7 +81,7 @@ def main():
         print('output.shape', output.shape)
         # resize the output to match the shape of the mask
         if output.shape[-2:] != image.shape[:2]:
-            output = resize(output, size=image.shape[:2])
+            output = resize(output, size=1024)
         print('output.shape', output.shape)    
         output = torch.argmax(output, dim=1).cpu().numpy()[0]
         print(output)

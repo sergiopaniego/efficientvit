@@ -325,8 +325,8 @@ class SEGDataProvider(DataProvider):
 
     def build_train_transform(self):
         train_transforms = [
-            RandomColorJitter(brightness=0.3, contrast=0.3),
-            GaussianBlur(sigma=(0.1, 2.0)),
+            #RandomColorJitter(brightness=0.3, contrast=0.3),
+            #GaussianBlur(sigma=(0.1, 2.0)),
             RandomHFlip(),
             ResizeLongestSide(target_length=self.image_size[0]),
             Normalize_and_Pad(target_length=self.image_size[0]),
@@ -364,14 +364,14 @@ class SEGDataProvider(DataProvider):
         if dataset is None:
             return None
         if train:
+            
             #sampler = SEGDistributedSampler(dataset, sub_epochs_per_epoch=self.sub_epochs_per_epoch, num_replicas=1) #################################
-            sampler = SEGDistributedSampler(dataset, num_replicas=1, rank=0,sub_epochs_per_epoch=self.sub_epochs_per_epoch)
-
+            sampler = SEGDistributedSampler(dataset, num_replicas=1, rank=0, sub_epochs_per_epoch=self.sub_epochs_per_epoch, shuffle=True)
             dataloader = DataLoader(dataset, batch_size, sampler=sampler, drop_last=True, num_workers=n_worker)
             #dataloader = DataLoader(dataset, batch_size, drop_last=True, num_workers=n_worker, shuffle=True)
             return dataloader
         else:
-            sampler = DistributedSampler(dataset, num_replicas=1, rank=0, shuffle=False)
+            sampler = DistributedSampler(dataset, num_replicas=1, rank=0, shuffle=True)
             dataloader = DataLoader(dataset, batch_size, sampler=sampler, drop_last=False, num_workers=n_worker)
             #dataloader = DataLoader(dataset, batch_size, drop_last=False, num_workers=n_worker, shuffle=True)
             return dataloader
